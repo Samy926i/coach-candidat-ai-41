@@ -12,6 +12,7 @@ import SessionDetail from "./pages/SessionDetail";
 import CVUpload from "./pages/CVUpload";
 import CVAnalysis from "./pages/CVAnalysis";
 import Settings from "./pages/Settings";
+import Research from "./pages/Research";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/research" element={<Research />} />
           <Route path="/job-context" element={<JobContext />} />
           <Route path="/interview" element={<Interview />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
