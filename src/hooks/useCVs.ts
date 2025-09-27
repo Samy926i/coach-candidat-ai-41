@@ -1,38 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-
-export interface CVUpload {
-  id: string;
-  filename: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-  upload_type: string;
-  raw_text: string;
-  structured_data: any;
-  processing_method: string;
-  confidence_score: number | null;
-  file_format: string | null;
-  is_active: boolean;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-  file_data?: string | null;
-  file_url?: string | null;
-}
-
+import type { CV } from '@/types/cv';
 export function useCVs() {
-  const [cvs, setCvs] = useState<CVUpload[]>([]);
+  const [cvs, setCvs] = useState<CV[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchCVs = async () => {
+  const isFetchingRef = useRef(false);
+
+  const fetchCVs = useCallback(async () => {
+    if (isFetchingRef.current) {
+      console.debug('[useCVs] fetchCVs: already fetching, skipping');
+      return;
+    }
+    isFetchingRef.current = true;
+    console.debug('[useCVs] fetchCVs: start');
     try {
       setLoading(true);
       setError(null);
-      
-      // CORRECTION SÉCURITE CRITIQUE: Filtrer par user_id
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setCvs([]);
@@ -42,30 +30,41 @@ export function useCVs() {
       const { data, error } = await supabase
         .from('cv_uploads')
         .select('*')
-        .eq('user_id', user.id) // FILTRE SÉCURISÉ PAR UTILISATEUR
+        .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCvs(data || []);
+
+      const mapped: CV[] = (data || []).map((row: any) => ({
+        id: row.id,
+        filename: row.filename || row.file_data || 'document.pdf',
+        file_size: row.file_size || 0,
+        file_url: row.file_url || row.file_data || '',
+        created_at: row.created_at || new Date().toISOString(),
+        is_default: !!row.is_default,
+        mime_type: row.mime_type || 'application/pdf'
+      }));
+
+      setCvs(mapped);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
       setError(errorMessage);
       console.error('Error fetching CVs:', err);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
+      console.debug('[useCVs] fetchCVs: end');
     }
-  };
+  }, []);
 
-  const setDefaultCV = async (cvId: string) => {
+  const setDefaultCV = useCallback(async (cvId: string) => {
     try {
-      // First, remove default from all CVs
       await supabase
         .from('cv_uploads')
         .update({ is_default: false })
         .eq('is_active', true);
 
-      // Then set the selected CV as default
       const { error } = await supabase
         .from('cv_uploads')
         .update({ is_default: true })
@@ -89,9 +88,9 @@ export function useCVs() {
       });
       return false;
     }
-  };
+  }, [fetchCVs, toast]);
 
-  const deleteCV = async (cvId: string) => {
+  const deleteCV = useCallback(async (cvId: string) => {
     try {
       const { error } = await supabase
         .from('cv_uploads')
@@ -116,36 +115,15 @@ export function useCVs() {
       });
       return false;
     }
-  };
-
-  const getDefaultCV = () => {
-    return cvs.find(cv => cv.is_default);
-  };
-
-  const getTotalCVs = () => {
-    return cvs.length;
-  };
-
-  // Nouvelles fonctions pour différencier les types de CVs
-  const getDirectCVs = () => {
-    return cvs.filter(cv => cv.upload_type === 'direct');
-  };
-
-  const getParsedCVs = () => {
-    return cvs.filter(cv => cv.upload_type !== 'direct');
-  };
-
-  const getTotalDirectCVs = () => {
-    return getDirectCVs().length;
-  };
-
-  const getTotalParsedCVs = () => {
-    return getParsedCVs().length;
-  };
+  }, [fetchCVs, toast]);
 
   useEffect(() => {
     fetchCVs();
   }, []);
+
+  // helpers utilisés par le dashboard
+  const getTotalDirectCVs = () => cvs.length;
+  const getDirectCVs = () => cvs;
 
   return {
     cvs,
@@ -154,12 +132,8 @@ export function useCVs() {
     fetchCVs,
     setDefaultCV,
     deleteCV,
-    getDefaultCV,
-    getTotalCVs,
-    getDirectCVs,
-    getParsedCVs,
+    refreshCVs: fetchCVs,
     getTotalDirectCVs,
-    getTotalParsedCVs,
-    refreshCVs: fetchCVs
+    getDirectCVs,
   };
 }

@@ -1,28 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCVUploader } from '@/hooks/useCVUploader';
-import { useCVs } from '@/hooks/useCVs';
 import type { CV } from '@/types/cv';
 import { Upload, FileText, Eye, Trash2, Loader2 } from 'lucide-react';
 
 interface Props {
   onUploadComplete?: (cv: CV) => void;
   userId: string;
+  initialCVs?: CV[];
 }
 
-export function CVUploadDirect({ onUploadComplete, userId }: Props) {
+export function CVUploadDirect({ onUploadComplete, userId, initialCVs = [] }: Props) {
+  const [cvs, setCVs] = useState<CV[]>(initialCVs);
   const [currentFile, setCurrentFile] = useState<string>('');
   const { uploadCV, previewCV, deleteCV, isLoading } = useCVUploader();
-  const { cvs, loading: cvsLoading, fetchCVs, deleteCV: deleteCVMetadata } = useCVs();
-
-  useEffect(() => {
-    // load persisted CVs on mount
-    fetchCVs().catch(() => {
-      /* ignore */
-    });
-  }, [fetchCVs]);
 
   const handleDrop = async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -31,7 +24,7 @@ export function CVUploadDirect({ onUploadComplete, userId }: Props) {
     setCurrentFile(file.name);
     try {
       const uploadedCV = await uploadCV(file, userId);
-      await fetchCVs();
+      setCVs(prev => [...prev, uploadedCV]);
       onUploadComplete?.(uploadedCV);
     } finally {
       setCurrentFile('');
@@ -41,16 +34,17 @@ export function CVUploadDirect({ onUploadComplete, userId }: Props) {
   const handleDelete = async (cv: CV) => {
     try {
       await deleteCV(cv);
-      await deleteCVMetadata(cv.id);
-      await fetchCVs();
-    } catch (err) {
-      // error handled in hooks
+      setCVs(prev => prev.filter(c => c.id !== cv.id));
+    } catch {
+      // Les erreurs sont déjà gérées dans le hook
     }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: handleDrop,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: {
+      'application/pdf': ['.pdf']
+    },
     maxFiles: 1,
     disabled: isLoading
   });
@@ -63,24 +57,45 @@ export function CVUploadDirect({ onUploadComplete, userId }: Props) {
             <Upload className="h-5 w-5 text-primary" />
             <span>Upload de CV</span>
           </CardTitle>
-          <CardDescription>Uploadez vos CVs en PDF pour les utiliser avec les agents IA</CardDescription>
+          <CardDescription>
+            Uploadez vos CVs en PDF pour les utiliser avec les agents IA
+          </CardDescription>
         </CardHeader>
-
+        
         <CardContent>
-          {isLoading || cvsLoading ? (
+          {isLoading ? (
             <div className="border-2 border-dashed border-primary/50 bg-primary/5 rounded-lg p-8 text-center">
               <Loader2 className="mx-auto h-8 w-8 text-primary animate-spin mb-3" />
               <p className="text-sm font-medium text-primary">Upload en cours...</p>
               <p className="text-xs text-muted-foreground mt-1">{currentFile}</p>
             </div>
           ) : (
-            <div {...getRootProps()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200">
+            <div
+              {...getRootProps()}
+              className={`
+                border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200
+                ${isDragActive 
+                  ? 'border-primary bg-primary/5 scale-[1.02]' 
+                  : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-primary/5'
+                }
+              `}
+            >
               <input {...getInputProps()} />
-              <FileText className={`mx-auto h-10 w-10 mb-4 transition-colors duration-200 ${isDragActive ? 'text-primary' : 'text-muted-foreground'}`} />
+              
+              <FileText className={`mx-auto h-10 w-10 mb-4 transition-colors duration-200 ${
+                isDragActive ? 'text-primary' : 'text-muted-foreground'
+              }`} />
+              
               <div className="space-y-2">
-                <p className="text-lg font-medium">{isDragActive ? 'Déposez votre CV ici' : 'Glissez votre CV PDF ici'}</p>
-                <p className="text-sm text-muted-foreground">ou cliquez pour sélectionner un fichier</p>
-                <p className="text-xs text-muted-foreground">Format: PDF • Taille max: 10MB</p>
+                <p className="text-lg font-medium">
+                  {isDragActive ? 'Déposez votre CV ici' : 'Glissez votre CV PDF ici'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  ou cliquez pour sélectionner un fichier
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Format: PDF • Taille max: 10MB
+                </p>
               </div>
             </div>
           )}
@@ -94,26 +109,45 @@ export function CVUploadDirect({ onUploadComplete, userId }: Props) {
               <FileText className="h-5 w-5 text-green-600" />
               <span>Mes CVs ({cvs.length})</span>
             </CardTitle>
-            <CardDescription>Vos CVs sont prêts à être utilisés par les agents IA</CardDescription>
+            <CardDescription>
+              Vos CVs sont prêts à être utilisés par les agents IA
+            </CardDescription>
           </CardHeader>
-
+          
           <CardContent>
             <div className="space-y-3">
               {cvs.map((cv) => (
-                <div key={cv.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div 
+                  key={cv.id} 
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
                   <div className="flex items-center space-x-3">
                     <FileText className="h-5 w-5 text-red-600" />
                     <div>
                       <p className="font-medium text-sm">{cv.filename}</p>
-                      <p className="text-xs text-muted-foreground">{((cv.file_size ?? 0) / 1024 / 1024).toFixed(2)} MB • {new Date(cv.created_at).toLocaleDateString('fr-FR')}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(cv.file_size / 1024 / 1024).toFixed(2)} MB • 
+                        {new Date(cv.created_at).toLocaleDateString('fr-FR')}
+                      </p>
                     </div>
                   </div>
-
+                  
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" onClick={() => cv.file_url && previewCV(cv.file_url)}>
-                      <Eye className="h-4 w-4 mr-1" /> Aperçu
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => previewCV(cv.file_url)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Aperçu
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDelete(cv)} className="text-destructive hover:text-destructive">
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(cv)}
+                      className="text-destructive hover:text-destructive"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

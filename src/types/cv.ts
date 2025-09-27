@@ -1,13 +1,6 @@
-// Types personnalisés pour les CVs avec support d'upload direct
-import type { Tables } from '@/integrations/supabase/types';
+// Types pour les CVs utilisés dans l'application
 
-// Extension du type cv_uploads avec file_url
-export interface CVUpload extends Tables<'cv_uploads'> {
-  file_url?: string | null;
-}
-
-// Type pour un CV uploadé directement
-export interface DirectUploadedCV {
+export interface CV {
   id: string;
   filename: string;
   file_size: number;
@@ -17,7 +10,17 @@ export interface DirectUploadedCV {
   mime_type: string;
 }
 
-// Type pour les métadonnées d'upload
+export interface UploadedCV extends CV {
+  user_id?: string;
+  file_data?: string;
+  file_format?: string;
+  upload_type?: 'direct' | 'parsed';
+  processing_method?: string;
+  raw_text?: string;
+  structured_data?: Record<string, any>;
+  is_active?: boolean;
+}
+
 export interface CVUploadMetadata {
   user_id: string;
   filename: string;
@@ -26,7 +29,7 @@ export interface CVUploadMetadata {
   mime_type: string;
   file_format: string;
   upload_type: 'direct' | 'parsed';
-  processing_method: 'none' | 'text_extraction' | 'ocr_gpt4' | 'ocr_tesseract';
+  processing_method: string;
   raw_text: string;
   structured_data: Record<string, any>;
   is_active: boolean;
