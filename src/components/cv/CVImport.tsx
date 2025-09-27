@@ -49,9 +49,9 @@ interface ProcessedCV {
     languages?: string[];
     certifications?: string[];
   };
-  processing_method: 'text_extraction' | 'ocr_gpt4' | 'ocr_tesseract' | 'docx_extraction' | 'txt_direct';
+  processing_method: 'text_extraction' | 'ocr' | 'docx_extraction' | 'txt_direct' | 'raw_text';
   confidence_score: number;
-  file_format: 'pdf' | 'docx' | 'txt';
+  file_format: 'pdf' | 'docx' | 'txt' | 'raw_text';
 }
 
 export function CVImport() {
@@ -150,7 +150,7 @@ export function CVImport() {
       
       console.log(`Processing ${selectedFile.name} (${selectedFile.type})`);
       
-      const response = await supabase.functions.invoke('cv-processor', {
+      const response = await supabase.functions.invoke('cv-parser', {
         body: formData
       });
 
@@ -168,10 +168,10 @@ export function CVImport() {
 
       const methodNames = {
         'text_extraction': 'Extraction de texte directe',
-        'ocr_gpt4': 'OCR avec GPT-4o mini',
-        'ocr_tesseract': 'OCR Tesseract',
+        'ocr': 'OCR avec GPT-4o mini',
         'docx_extraction': 'Extraction DOCX',
-        'txt_direct': 'Lecture directe'
+        'txt_direct': 'Lecture directe',
+        'raw_text': 'Texte brut'
       };
 
       const confidence = Math.round(processedData.confidence_score * 100);
@@ -313,18 +313,18 @@ export function CVImport() {
   const getMethodBadge = (method: ProcessedCV['processing_method']) => {
     const variants = {
       'text_extraction': 'default',
-      'ocr_gpt4': 'secondary',
-      'ocr_tesseract': 'outline',
+      'ocr': 'secondary',
       'docx_extraction': 'default',
-      'txt_direct': 'secondary'
+      'txt_direct': 'secondary',
+      'raw_text': 'outline'
     } as const;
     
     const labels = {
       'text_extraction': 'Texte Direct',
-      'ocr_gpt4': 'OCR GPT-4',
-      'ocr_tesseract': 'OCR Tesseract',
+      'ocr': 'OCR GPT-4',
       'docx_extraction': 'DOCX',
-      'txt_direct': 'Texte Direct'
+      'txt_direct': 'Texte Direct',
+      'raw_text': 'Texte Brut'
     };
     
     return (
