@@ -19,6 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { mockLightpandaService } from "@/lib/mock-data";
+import { retrieveJobData } from "@/services/jobRetrieverCloud";
 
 export default function JobContext() {
   const navigate = useNavigate();
@@ -29,6 +30,8 @@ export default function JobContext() {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [parsedData, setParsedData] = useState<any>(null);
+  const [jobJson, setJobJson] = useState<any>(null);
+  const [jobJsonError, setJobJsonError] = useState<string>("");
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,14 +57,27 @@ export default function JobContext() {
     }
 
     setLoading(true);
+    setJobJson(null);
+    setJobJsonError("");
     try {
-      const urlList = urls.split('\n').filter(url => url.trim());
-      const result = await mockLightpandaService.fetchJobContext({
+      const urlList = urls.split('\n').map(u => u.trim()).filter(url => url);
+
+      // 1) Appel fonction edge pour récupérer le JSON du job (même session, pas de stockage)
+      if (urlList.length > 0) {
+        try {
+          const jobData = await retrieveJobData(urlList[0]);
+          setJobJson(jobData);
+        } catch (e: any) {
+          setJobJsonError(e?.message || 'Erreur lors de la récupération du JSON du job');
+        }
+      }
+
+      // 2) Conserver l'ancien mock pour l'UI actuelle (exigences/skills)
+      const mockResult = await mockLightpandaService.fetchJobContext({
         urls: urlList,
-        pdf: pdfFile || undefined
+        pdf: pdfFile || undefined,
       });
-      
-      setParsedData(result);
+      setParsedData(mockResult);
       toast({
         title: "Analyse terminée",
         description: "Le contexte de l'emploi a été analysé avec succès"
@@ -255,6 +271,47 @@ https://company.com/careers/frontend-dev"
           </div>
 
           {/* Parsed Results */}
+          {/* JSON extrait (session uniquement) */}
+          {(jobJson || jobJsonError) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5 text-accent" />
+                  <span>Données JSON extraites</span>
+                </CardTitle>
+                <CardDescription>
+                  Généré à partir de la première URL. Non stocké, disponible dans cette session.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {jobJsonError ? (
+                  <div className="text-sm text-red-600">{jobJsonError}</div>
+                ) : (
+                  <>
+                    <div className="rounded-md bg-muted p-4 overflow-auto max-h-96">
+                      <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(jobJson, null, 2)}</pre>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(JSON.stringify(jobJson, null, 2));
+                            toast({ title: 'Copié', description: 'JSON copié dans le presse-papiers' });
+                          } catch {
+                            toast({ title: 'Erreur', description: 'Impossible de copier', variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        Copier le JSON
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {parsedData && (
             <Card>
               <CardHeader>
