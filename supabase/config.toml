@@ -73,3 +73,6 @@ verify_jwt = false
 
 [functions.pdf-processor]
 verify_jwt = false
+
+[functions.cv-processor]
+verify_jwt = false

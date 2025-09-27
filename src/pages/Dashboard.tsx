@@ -342,7 +342,7 @@ export default function Dashboard() {
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate('/cv')}>
+                onClick={() => navigate('/cv-import')}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Target className="h-5 w-5 text-accent" />
