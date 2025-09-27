@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LinkedInSection } from "@/components/settings/LinkedInSection";
 import { 
   ArrowLeft, 
   User, 
@@ -17,31 +18,87 @@ import {
   LogOut,
   Save,
   Plus,
-  X
+  X,
+  Linkedin
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   
   // Profile settings
-  const [fullName, setFullName] = useState("Jean Dupont");
-  const [email, setEmail] = useState("jean.dupont@email.com");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("senior");
   
   // Goals settings
-  const [targetRoles, setTargetRoles] = useState(["Développeur Frontend Senior", "Lead Developer"]);
+  const [targetRoles, setTargetRoles] = useState<string[]>([]);
   const [newRole, setNewRole] = useState("");
-  const [careerGoals, setCareerGoals] = useState("Devenir Lead Developer dans une startup tech");
+  const [careerGoals, setCareerGoals] = useState("");
   
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [weeklyReport, setWeeklyReport] = useState(true);
   const [practiceReminders, setPracticeReminders] = useState(false);
+
+  useEffect(() => {
+    // Get initial session and user data
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        setEmail(session.user.email || "");
+        setFullName(session.user.user_metadata?.full_name || "");
+        fetchProfile(session.user.id);
+      } else {
+        navigate('/auth');
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!session?.user) {
+          navigate('/auth');
+        } else {
+          setUser(session.user);
+          setEmail(session.user.email || "");
+          setFullName(session.user.user_metadata?.full_name || "");
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      if (data) {
+        setFullName(data.full_name || "");
+        setLinkedinUrl(data.linkedin_url || "");
+        setExperienceLevel(data.experience_level || "senior");
+        setTargetRoles(data.target_roles || []);
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
 
   const handleAddRole = () => {
     if (newRole.trim() && !targetRoles.includes(newRole.trim())) {
@@ -55,32 +112,61 @@ export default function Settings() {
   };
 
   const handleSaveProfile = async () => {
+    if (!user) return;
+    
     try {
-      // Here we would update the profile in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          full_name: fullName,
+          email: email,
+          linkedin_url: linkedinUrl,
+          experience_level: experienceLevel,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        throw error;
+      }
+
       toast({
         title: "Profil mis à jour",
         description: "Vos informations ont été sauvegardées"
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder le profil",
+        description: error.message || "Impossible de sauvegarder le profil",
         variant: "destructive"
       });
     }
   };
 
   const handleSaveGoals = async () => {
+    if (!user) return;
+    
     try {
-      // Here we would update goals in Supabase
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          target_roles: targetRoles,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        throw error;
+      }
+
       toast({
         title: "Objectifs mis à jour",
         description: "Vos objectifs de carrière ont été sauvegardés"
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder les objectifs",
+        description: error.message || "Impossible de sauvegarder les objectifs",
         variant: "destructive"
       });
     }
@@ -142,8 +228,9 @@ export default function Settings() {
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Profil</TabsTrigger>
+            <TabsTrigger value="linkedin">LinkedIn</TabsTrigger>
             <TabsTrigger value="goals">Objectifs</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="account">Compte</TabsTrigger>
@@ -180,6 +267,7 @@ export default function Settings() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="jean@example.com"
+                      disabled
                     />
                   </div>
                 </div>
@@ -217,6 +305,11 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* LinkedIn Tab */}
+          <TabsContent value="linkedin" className="space-y-6">
+            <LinkedInSection user={user} />
           </TabsContent>
 
           {/* Goals Tab */}

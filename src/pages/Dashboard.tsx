@@ -6,6 +6,7 @@ import { SessionList } from "@/components/coaching/SessionList";
 import { TrendChart } from "@/components/coaching/TrendChart";
 import { ScoreBadge } from "@/components/coaching/ScoreBadge";
 import { AccountLinkingBanner } from "@/components/ui/account-linking-banner";
+import { ProfileCompletenessCard } from "@/components/profile/ProfileCompletenessCard";
 import { 
   Video, 
   TrendingUp, 
@@ -259,7 +260,12 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Latest Scores */}
+          {/* Profile Completeness */}
+          <ProfileCompletenessCard user={user} />
+        </div>
+
+        {/* Latest Scores */}
+        {completedSessions.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>Derniers Scores</CardTitle>
@@ -268,29 +274,27 @@ export default function Dashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {completedSessions.length > 0 && (
-                <div className="space-y-3">
+              <div className="space-y-3">
+                <ScoreBadge 
+                  score={completedSessions[0].overall_score || 0} 
+                  label="Global" 
+                  size="lg" 
+                />
+                <div className="space-y-2">
                   <ScoreBadge 
-                    score={completedSessions[0].overall_score || 0} 
-                    label="Global" 
-                    size="lg" 
+                    score={completedSessions[0].communication_score || 0} 
+                    label="Communication" 
                   />
-                  <div className="space-y-2">
-                    <ScoreBadge 
-                      score={completedSessions[0].communication_score || 0} 
-                      label="Communication" 
-                    />
-                    <ScoreBadge 
-                      score={completedSessions[0].technical_score || 0} 
-                      label="Technique" 
-                    />
-                    <ScoreBadge 
-                      score={completedSessions[0].confidence_score || 0} 
-                      label="Confiance" 
-                    />
-                  </div>
+                  <ScoreBadge 
+                    score={completedSessions[0].technical_score || 0} 
+                    label="Technique" 
+                  />
+                  <ScoreBadge 
+                    score={completedSessions[0].confidence_score || 0} 
+                    label="Confiance" 
+                  />
                 </div>
-              )}
+              </div>
               
               <Button 
                 className="w-full mt-4" 
@@ -301,7 +305,7 @@ export default function Dashboard() {
               </Button>
             </CardContent>
           </Card>
-        </div>
+        )}
 
         {/* Recent Sessions */}
         <Card>

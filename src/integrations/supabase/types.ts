@@ -306,6 +306,15 @@ export type Database = {
           experience_level: string | null
           full_name: string | null
           id: string
+          linkedin_connections_count: number | null
+          linkedin_data: Json | null
+          linkedin_headline: string | null
+          linkedin_id: string | null
+          linkedin_industry: string | null
+          linkedin_linked_at: string | null
+          linkedin_location: string | null
+          linkedin_public_profile_url: string | null
+          linkedin_summary: string | null
           linkedin_url: string | null
           skills: string[] | null
           target_roles: string[] | null
@@ -319,6 +328,15 @@ export type Database = {
           experience_level?: string | null
           full_name?: string | null
           id?: string
+          linkedin_connections_count?: number | null
+          linkedin_data?: Json | null
+          linkedin_headline?: string | null
+          linkedin_id?: string | null
+          linkedin_industry?: string | null
+          linkedin_linked_at?: string | null
+          linkedin_location?: string | null
+          linkedin_public_profile_url?: string | null
+          linkedin_summary?: string | null
           linkedin_url?: string | null
           skills?: string[] | null
           target_roles?: string[] | null
@@ -332,6 +350,15 @@ export type Database = {
           experience_level?: string | null
           full_name?: string | null
           id?: string
+          linkedin_connections_count?: number | null
+          linkedin_data?: Json | null
+          linkedin_headline?: string | null
+          linkedin_id?: string | null
+          linkedin_industry?: string | null
+          linkedin_linked_at?: string | null
+          linkedin_location?: string | null
+          linkedin_public_profile_url?: string | null
+          linkedin_summary?: string | null
           linkedin_url?: string | null
           skills?: string[] | null
           target_roles?: string[] | null

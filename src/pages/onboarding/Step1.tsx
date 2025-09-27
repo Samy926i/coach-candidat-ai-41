@@ -40,13 +40,8 @@ export default function Step1({ onStep1Complete }: Step1Props) {
   }, [hasLinkedIn, hasCV, isAutoAdvancing, navigate, onStep1Complete]);
 
   const handleLinkedInConnect = async () => {
-    setIsConnecting(true);
-    
-    // Simulate LinkedIn connection (placeholder)
-    setTimeout(() => {
-      setHasLinkedIn(true);
-      setIsConnecting(false);
-    }, 1500);
+    // Use the real LinkedIn connection
+    // This will be handled by the LinkedInButton component itself
   };
 
   const handleResumeUpload = async (file: File) => {
