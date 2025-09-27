@@ -76,3 +76,12 @@ verify_jwt = false
 
 [functions.cv-processor]
 verify_jwt = false
+
+[functions.job-search]
+verify_jwt = false
+
+[functions.research]
+verify_jwt = false
+
+[functions.question-generator]
+verify_jwt = false
