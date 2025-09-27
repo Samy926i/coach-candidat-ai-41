@@ -72,7 +72,7 @@ Return JSON array of interview questions without markdown formatting.`
           },
           {
             role: 'user',
-            content: `Generate targeted interview questions based on:
+            content: `Generate targeted interview questions based on (preserve all UTF-8 characters including international text, symbols, and emojis):
 
 CANDIDATE STRENGTHS:
 ${JSON.stringify(gapAnalysis.strengths, null, 2)}
@@ -129,7 +129,7 @@ Generate 8-10 strategic questions that test both strengths and adaptability.`
 
     return new Response(
       JSON.stringify({ interview_questions: questions }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
 
   } catch (error: any) {

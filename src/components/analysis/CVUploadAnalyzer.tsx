@@ -35,13 +35,19 @@ export function CVUploadAnalyzer() {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      setCvContent(e.target?.result as string);
+      let content = e.target?.result as string;
+      // Apply Unicode normalization (NFC) for consistency
+      if (content && typeof content.normalize === 'function') {
+        content = content.normalize('NFC');
+      }
+      setCvContent(content);
       toast({
         title: "CV uploadé",
         description: "Contenu du CV chargé avec succès"
       });
     };
-    reader.readAsText(file);
+    // Explicitly read as UTF-8 text
+    reader.readAsText(file, 'UTF-8');
   };
 
   const runCompleteAnalysis = async () => {
@@ -194,7 +200,14 @@ export function CVUploadAnalyzer() {
             <Textarea
               placeholder="Ou collez le contenu de votre CV ici..."
               value={cvContent}
-              onChange={(e) => setCvContent(e.target.value)}
+              onChange={(e) => {
+                let content = e.target.value;
+                // Apply Unicode normalization for pasted content
+                if (content && typeof content.normalize === 'function') {
+                  content = content.normalize('NFC');
+                }
+                setCvContent(content);
+              }}
               rows={4}
               className="mt-2"
             />

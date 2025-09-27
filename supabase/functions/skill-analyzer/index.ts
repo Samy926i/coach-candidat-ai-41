@@ -69,7 +69,7 @@ Return ONLY valid JSON without markdown formatting.`
           },
           {
             role: 'user',
-            content: `Analyze skills gap between:
+            content: `Analyze skills gap between (preserve all UTF-8 characters including international text, symbols, and emojis):
 
 CANDIDATE CV:
 ${JSON.stringify(cvAnalysis, null, 2)}
@@ -114,7 +114,7 @@ Provide detailed gap analysis.`
 
     return new Response(
       JSON.stringify(analysis),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
 
   } catch (error: any) {

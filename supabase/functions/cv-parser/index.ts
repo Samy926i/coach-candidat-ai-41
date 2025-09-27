@@ -38,9 +38,12 @@ serve(async (req) => {
     if (!cvContent) {
       return new Response(
         JSON.stringify({ error: 'CV content is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
+
+    // Normalize Unicode content to NFC for consistency
+    const normalizedContent = cvContent.normalize ? cvContent.normalize('NFC') : cvContent;
 
     console.log('Parsing CV content with OpenAI...');
 
@@ -70,7 +73,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
           },
           {
             role: 'user',
-            content: `Parse this CV content and extract structured information:\n\n${cvContent}`
+            content: `Parse this CV content and extract structured information. The content may contain international characters, symbols, and emojis - preserve all UTF-8 characters accurately:\n\n${normalizedContent}`
           }
         ],
         temperature: 0.3,
@@ -82,7 +85,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
       console.error('OpenAI API error:', response.status, response.statusText);
       return new Response(
         JSON.stringify({ error: 'Failed to parse CV with AI' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
 
@@ -99,7 +102,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
       console.error('Failed to parse AI response as JSON:', parseError);
       return new Response(
         JSON.stringify({ error: 'Invalid AI response format' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
       );
     }
 
@@ -107,14 +110,14 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
 
     return new Response(
       JSON.stringify({ cv_analysis: cvEntity }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
 
   } catch (error: any) {
     console.error('Error in cv-parser function:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
   }
 });

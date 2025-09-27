@@ -56,6 +56,9 @@ serve(async (req) => {
     const htmlContent = await response.text();
     console.log('Fetched HTML content, length:', htmlContent.length);
 
+    // Normalize Unicode content for consistency
+    const normalizedHtml = htmlContent.normalize ? htmlContent.normalize('NFC') : htmlContent;
+
     // Extract text content and clean it using AI
     const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -87,7 +90,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
           },
           {
             role: 'user',
-            content: `Parse this job posting HTML and extract structured information:\n\n${htmlContent.slice(0, 8000)}`
+            content: `Parse this job posting HTML and extract structured information. The content may contain international characters, symbols, and emojis - preserve all UTF-8 characters accurately:\n\n${normalizedHtml.slice(0, 8000)}`
           }
         ],
         temperature: 0.3,
@@ -124,7 +127,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
 
     return new Response(
       JSON.stringify({ jd_requirements: jdRequirements }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' } }
     );
 
   } catch (error: any) {
