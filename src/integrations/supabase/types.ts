@@ -85,6 +85,7 @@ export type Database = {
           confidence_score: number | null
           created_at: string
           embedding: string | null
+          file_data: string | null
           file_format: string | null
           file_size: number | null
           filename: string | null
@@ -103,6 +104,7 @@ export type Database = {
           confidence_score?: number | null
           created_at?: string
           embedding?: string | null
+          file_data?: string | null
           file_format?: string | null
           file_size?: number | null
           filename?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           confidence_score?: number | null
           created_at?: string
           embedding?: string | null
+          file_data?: string | null
           file_format?: string | null
           file_size?: number | null
           filename?: string | null
