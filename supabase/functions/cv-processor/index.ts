@@ -643,55 +643,26 @@ async function convertPDFToImages(arrayBuffer: ArrayBuffer): Promise<string[]> {
         
         // Set scale/resolution for better OCR quality
         const viewport = page.getViewport({ scale: 2.0 });
-        const canvas = createCanvas(viewport.width, viewport.height);
-        const context = canvas.getContext("2d");
-
-        if (!context) {
-          throw new Error(`Could not get 2D context for page ${pageNum}`);
+        // Canvas is not available in Deno edge functions - use fallback
+        // Skip canvas rendering and use text extraction instead
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .filter((item: any) => 'str' in item)
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        if (pageText.trim().length > 20) {
+          console.log(`[cv-processor] Extracted text from page ${pageNum} (${pageText.length} chars)`);
+          
+          // Convert text to base64 for processing
+          const textAsBase64 = btoa(unescape(encodeURIComponent(pageText)));
+          const textDataUrl = `data:text/plain;base64,${textAsBase64}`;
+          images.push(textDataUrl);
         }
-
-        console.log(`[cv-processor] Rendering page ${pageNum} (${viewport.width}x${viewport.height})...`);
-
-        // Render page into canvas
-        await page.render({ canvasContext: context, viewport }).promise;
-
-        // Export as PNG base64
-        const pngBuffer = canvas.toBuffer("image/png");
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(pngBuffer)));
-        const dataUrl = `data:image/png;base64,${base64}`;
         
-        images.push(dataUrl);
-        console.log(`[cv-processor] Converted page ${pageNum}/${pdf.numPages} to PNG (${Math.round(dataUrl.length / 1024)}KB)`);
-        
-        // Clean up page resources
         page.cleanup();
-        
       } catch (pageError) {
         console.error(`[cv-processor] Error processing page ${pageNum}:`, pageError);
-        
-        // Try fallback text extraction for this page
-        try {
-          const page = await pdf.getPage(pageNum);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .filter((item: any) => 'str' in item)
-            .map((item: any) => item.str)
-            .join(' ');
-          
-          if (pageText.trim().length > 20) {
-            console.log(`[cv-processor] Fallback: extracted text from page ${pageNum} (${pageText.length} chars)`);
-            
-            // Convert text to base64 for processing
-            const textAsBase64 = btoa(unescape(encodeURIComponent(pageText)));
-            const textDataUrl = `data:text/plain;base64,${textAsBase64}`;
-            images.push(textDataUrl);
-          }
-          
-          page.cleanup();
-        } catch (textError) {
-          console.error(`[cv-processor] Text extraction also failed for page ${pageNum}:`, textError);
-        }
-        
         continue;
       }
     }
