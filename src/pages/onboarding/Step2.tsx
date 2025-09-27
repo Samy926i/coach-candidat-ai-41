@@ -182,15 +182,13 @@ export default function Step2() {
 
   const handleContinue = () => {
     if (analysisComplete) {
-      // Mark onboarding as complete and navigate to dashboard
-      localStorage.setItem('onboardingCompleted', 'true');
-      navigate('/dashboard');
+      // Navigate to step 3 for recap
+      navigate('/onboarding/3');
     } else if (activeTab === 'manual') {
       analyzeJobOffer();
     } else {
       // Allow to skip the step if using search tab without analyzing
-      localStorage.setItem('onboardingCompleted', 'true');
-      navigate('/dashboard');
+      navigate('/onboarding/3');
     }
   };
 
@@ -199,7 +197,7 @@ export default function Step2() {
       <div className="w-full max-w-4xl mx-auto space-y-8">
         {/* Progress indicator */}
         <div className="text-center space-y-2">
-          <h1 className="coaching-heading">Étape 2 sur 2</h1>
+          <h1 className="coaching-heading">Étape 2 sur 3</h1>
           <p className="coaching-body">Analysons une offre d'emploi pour préparer votre entretien</p>
         </div>
 
@@ -350,7 +348,7 @@ export default function Step2() {
                   </>
                 ) : analysisComplete ? (
                   <>
-                    Terminer le tutoriel
+                    Continuer
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </>
                 ) : activeTab === 'manual' ? (
