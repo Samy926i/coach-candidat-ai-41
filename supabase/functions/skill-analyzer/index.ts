@@ -38,6 +38,14 @@ serve(async (req) => {
       );
     }
 
+    if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
+      return new Response(
+        JSON.stringify({ error: 'Service de traitement non configuré. Veuillez contacter l\'administrateur.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Analyzing skills gap...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -86,31 +94,67 @@ Provide detailed gap analysis.`
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, response.statusText, errorText);
+      
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: 'Clé API OpenAI invalide. Veuillez vérifier la configuration.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Limite de taux atteinte. Veuillez réessayer dans quelques instants.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Service d\'analyse temporairement indisponible' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const data = await response.json();
+    const analysisContent = data.choices[0]?.message?.content;
+
+    if (!analysisContent) {
       return new Response(
-        JSON.stringify({ error: 'Failed to analyze skills with AI' }),
+        JSON.stringify({ error: 'Réponse vide du service d\'analyse' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const analysisContent = data.choices[0].message.content;
+    console.log('Raw AI analysis:', analysisContent.substring(0, 200) + '...');
 
-    console.log('Raw AI analysis:', analysisContent);
-
-    // Parse the AI response
+    // Enhanced JSON parsing with fallback
     let analysis: any;
     try {
       analysis = JSON.parse(analysisContent);
     } catch (parseError) {
-      console.error('Failed to parse AI analysis as JSON:', parseError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid AI analysis format' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('Direct JSON parsing failed, trying to extract JSON block:', parseError);
+      
+      // Try to extract JSON using regex
+      const jsonMatch = analysisContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          analysis = JSON.parse(jsonMatch[0]);
+        } catch (regexError) {
+          console.error('Regex JSON extraction also failed:', regexError);
+          return new Response(
+            JSON.stringify({ error: 'Format de réponse invalide du service d\'analyse' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Impossible d\'extraire l\'analyse des compétences' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    console.log('Successfully analyzed skills gap:', analysis);
+    console.log('Successfully analyzed skills gap:', Object.keys(analysis));
 
     return new Response(
       JSON.stringify(analysis),
@@ -120,7 +164,7 @@ Provide detailed gap analysis.`
   } catch (error: any) {
     console.error('Error in skill-analyzer function:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: error.message || 'Erreur interne du serveur' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

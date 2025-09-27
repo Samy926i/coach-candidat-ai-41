@@ -33,6 +33,14 @@ serve(async (req) => {
       );
     }
 
+    if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
+      return new Response(
+        JSON.stringify({ error: 'Service de traitement non configuré. Veuillez contacter l\'administrateur.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Generating interview questions...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -95,35 +103,78 @@ Generate 8-10 strategic questions that test both strengths and adaptability.`
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, response.statusText, errorText);
+      
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ error: 'Clé API OpenAI invalide. Veuillez vérifier la configuration.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Limite de taux atteinte. Veuillez réessayer dans quelques instants.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Service de génération temporairement indisponible' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const data = await response.json();
+    const questionsContent = data.choices[0]?.message?.content;
+
+    if (!questionsContent) {
       return new Response(
-        JSON.stringify({ error: 'Failed to generate questions with AI' }),
+        JSON.stringify({ error: 'Réponse vide du service de génération' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
-    const questionsContent = data.choices[0].message.content;
+    console.log('Raw AI questions:', questionsContent.substring(0, 200) + '...');
 
-    console.log('Raw AI questions:', questionsContent);
-
-    // Parse the AI response
+    // Enhanced JSON parsing with fallback
     let questions: InterviewQuestion[];
     try {
       questions = JSON.parse(questionsContent);
     } catch (parseError) {
-      console.error('Failed to parse AI questions as JSON:', parseError);
+      console.error('Direct JSON parsing failed, trying to extract JSON block:', parseError);
+      
+      // Try to extract JSON using regex
+      const jsonMatch = questionsContent.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          questions = JSON.parse(jsonMatch[0]);
+        } catch (regexError) {
+          console.error('Regex JSON extraction also failed:', regexError);
+          return new Response(
+            JSON.stringify({ error: 'Format de réponse invalide du service de génération' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Impossible d\'extraire les questions d\'entretien' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Ensure each question has an id and is properly formatted
+    if (Array.isArray(questions)) {
+      questions = questions.map((q, index) => ({
+        ...q,
+        id: q.id || `q_${index + 1}_${Date.now()}`
+      }));
+    } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid AI questions format' }),
+        JSON.stringify({ error: 'Format de questions invalide - tableau attendu' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Ensure each question has an id
-    questions = questions.map((q, index) => ({
-      ...q,
-      id: q.id || `q_${index + 1}_${Date.now()}`
-    }));
 
     console.log('Successfully generated questions:', questions.length);
 
@@ -135,7 +186,7 @@ Generate 8-10 strategic questions that test both strengths and adaptability.`
   } catch (error: any) {
     console.error('Error in question-generator function:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: error.message || 'Erreur interne du serveur' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

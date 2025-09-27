@@ -36,25 +36,62 @@ serve(async (req) => {
       );
     }
 
-    console.log('Fetching job description from:', jobUrl);
-
-    // Fetch the job page content
-    const response = await fetch(jobUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    if (!response.ok) {
-      console.error('Failed to fetch job page:', response.status, response.statusText);
+    if (!openAIApiKey) {
+      console.error('OpenAI API key not configured');
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch job description page' }),
+        JSON.stringify({ error: 'Service de traitement non configuré. Veuillez contacter l\'administrateur.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('Fetching job description from:', jobUrl);
+
+    // Fetch the job page content with better error handling
+    let response;
+    try {
+      response = await fetch(jobUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+    } catch (fetchError) {
+      console.error('Network error fetching job page:', fetchError);
+      return new Response(
+        JSON.stringify({ error: 'Impossible d\'accéder à l\'URL fournie. Vérifiez l\'URL et votre connexion.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!response.ok) {
+      console.error('Failed to fetch job page:', response.status, response.statusText);
+      if (response.status === 404) {
+        return new Response(
+          JSON.stringify({ error: 'Page d\'offre d\'emploi non trouvée. Vérifiez l\'URL.' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else if (response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: 'Accès refusé à cette page. Essayez une autre URL d\'offre.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Erreur lors de la récupération de la page d\'offre d\'emploi' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const htmlContent = await response.text();
     console.log('Fetched HTML content, length:', htmlContent.length);
+
+    if (htmlContent.length < 100) {
+      return new Response(
+        JSON.stringify({ error: 'Contenu de page insuffisant. L\'URL fournie ne contient pas d\'offre d\'emploi valide.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Normalize Unicode content for consistency
     const normalizedHtml = htmlContent.normalize ? htmlContent.normalize('NFC') : htmlContent;
@@ -99,31 +136,67 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
     });
 
     if (!aiResponse.ok) {
-      console.error('OpenAI API error:', aiResponse.status, aiResponse.statusText);
+      const errorText = await aiResponse.text();
+      console.error('OpenAI API error:', aiResponse.status, aiResponse.statusText, errorText);
+      
+      if (aiResponse.status === 401) {
+        return new Response(
+          JSON.stringify({ error: 'Clé API OpenAI invalide. Veuillez vérifier la configuration.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else if (aiResponse.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Limite de taux atteinte. Veuillez réessayer dans quelques instants.' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Service de traitement temporairement indisponible' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const aiData = await aiResponse.json();
+    const parsedContent = aiData.choices[0]?.message?.content;
+
+    if (!parsedContent) {
       return new Response(
-        JSON.stringify({ error: 'Failed to parse job description with AI' }),
+        JSON.stringify({ error: 'Réponse vide du service de traitement' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const aiData = await aiResponse.json();
-    const parsedContent = aiData.choices[0].message.content;
+    console.log('Raw AI response:', parsedContent.substring(0, 200) + '...');
 
-    console.log('Raw AI response:', parsedContent);
-
-    // Try to parse the JSON response
+    // Enhanced JSON parsing with fallback
     let jdRequirements: JDRequirements;
     try {
       jdRequirements = JSON.parse(parsedContent);
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid AI response format' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('Direct JSON parsing failed, trying to extract JSON block:', parseError);
+      
+      // Try to extract JSON using regex
+      const jsonMatch = parsedContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          jdRequirements = JSON.parse(jsonMatch[0]);
+        } catch (regexError) {
+          console.error('Regex JSON extraction also failed:', regexError);
+          return new Response(
+            JSON.stringify({ error: 'Format de réponse invalide du service de traitement' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ error: 'Impossible d\'extraire les exigences du poste' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    console.log('Successfully parsed job description:', jdRequirements);
+    console.log('Successfully parsed job description:', Object.keys(jdRequirements));
 
     return new Response(
       JSON.stringify({ jd_requirements: jdRequirements }),
@@ -133,7 +206,7 @@ Return ONLY valid JSON without any markdown formatting or explanations.`
   } catch (error: any) {
     console.error('Error in jd-fetcher function:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ error: error.message || 'Erreur interne du serveur' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
