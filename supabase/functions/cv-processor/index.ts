@@ -1,5 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.0.379";
 
 // Enhanced CORS headers for better multipart/form-data support
@@ -11,6 +12,11 @@ const corsHeaders = {
 };
 
 const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+
+// Initialize Supabase client
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Set up global worker for PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
@@ -27,40 +33,137 @@ serve(async (req) => {
   try {
     console.log(`[cv-processor] Request method: ${req.method}, Content-Type: ${req.headers.get('content-type')}`);
     
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
-      console.error('[cv-processor] No file in form data');
-      return new Response(JSON.stringify({ error: 'No file provided' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const contentType = req.headers.get('content-type') || '';
+    let file: File | null = null;
+    let rawText: string | null = null;
+    let fileName: string | null = null;
+    let fileType: string | null = null;
+    let fileSize: number = 0;
+    let uploadType: string = '';
+
+    // Handle different input types
+    if (contentType.includes('multipart/form-data')) {
+      // File upload via form data
+      const formData = await req.formData();
+      file = formData.get('file') as File;
+      
+      if (!file) {
+        console.error('[cv-processor] No file in form data');
+        return new Response(JSON.stringify({ error: 'No file provided' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      
+      fileName = file.name;
+      fileType = file.type;
+      fileSize = file.size;
+      uploadType = 'file';
+      
+    } else if (contentType.includes('application/json')) {
+      // JSON input (base64 file or raw text)
+      const jsonData = await req.json();
+      
+      if (jsonData.cvContent) {
+        // Raw text input
+        rawText = jsonData.cvContent;
+        uploadType = 'raw_text';
+        fileName = 'raw_input.txt';
+        fileType = 'text/plain';
+        fileSize = rawText ? rawText.length : 0;
+        
+      } else if (jsonData.fileData && jsonData.fileName) {
+        // Base64 file input
+        const base64Data = jsonData.fileData;
+        const jsonFileName = jsonData.fileName;
+        const jsonFileType = jsonData.fileType || 'application/pdf';
+        
+        try {
+          const binaryString = atob(base64Data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          
+          file = new File([bytes], jsonFileName, { type: jsonFileType });
+          fileName = jsonFileName;
+          fileType = jsonFileType;
+          fileSize = file.size;
+          uploadType = 'file';
+        } catch (error) {
+          console.error('[cv-processor] Error converting base64 to file:', error);
+          throw new Error('Invalid base64 file data');
+        }
+      } else {
+        throw new Error('Invalid JSON input - expected cvContent or fileData + fileName');
+      }
+    } else {
+      throw new Error('Unsupported content type - use multipart/form-data or application/json');
     }
 
-    console.log(`[cv-processor] Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+    console.log(`[cv-processor] Processing input: ${fileName}, type: ${fileType}, size: ${fileSize} bytes, upload_type: ${uploadType}`);
 
-    // Enhanced file type detection - handle various MIME types and extensions
-    const fileName = file.name.toLowerCase();
-    const fileType = file.type.toLowerCase();
-    
     let result;
     
-    if (isPDFFile(fileType, fileName)) {
-      console.log('[cv-processor] Detected as PDF file');
-      result = await processPDF(file);
-    } else if (isWordFile(fileType, fileName)) {
-      console.log('[cv-processor] Detected as Word document');
-      result = await processDOCX(file);
-    } else if (isTextFile(fileType, fileName)) {
-      console.log('[cv-processor] Detected as text file');
-      result = await processTXT(file);
+    if (uploadType === 'raw_text') {
+      console.log('[cv-processor] Processing raw text input');
+      result = await processRawText(rawText!);
+    } else if (file) {
+      // Enhanced file type detection - handle various MIME types and extensions
+      const fileNameLower = fileName!.toLowerCase();
+      const fileTypeLower = fileType!.toLowerCase();
+      
+      if (isPDFFile(fileTypeLower, fileNameLower)) {
+        console.log('[cv-processor] Detected as PDF file');
+        result = await processPDF(file);
+      } else if (isWordFile(fileTypeLower, fileNameLower)) {
+        console.log('[cv-processor] Detected as Word document');
+        result = await processDOCX(file);
+      } else if (isTextFile(fileTypeLower, fileNameLower)) {
+        console.log('[cv-processor] Detected as text file');
+        result = await processTXT(file);
+      } else {
+        console.error(`[cv-processor] Unsupported file type: ${fileType} (${fileName})`);
+        throw new Error(`Format non supporté: ${fileType}. Formats acceptés: PDF, DOCX, TXT`);
+      }
     } else {
-      console.error(`[cv-processor] Unsupported file type: ${file.type} (${fileName})`);
-      throw new Error(`Format non supporté: ${file.type}. Formats acceptés: PDF, DOCX, TXT`);
+      throw new Error('No valid input provided');
     }
 
     console.log(`[cv-processor] Successfully processed CV using ${result.processing_method}`);
+
+    // Store in database if user is authenticated
+    const authHeader = req.headers.get('Authorization');
+    const userId = await getUserFromAuth(authHeader);
+    
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from('cv_uploads')
+          .insert({
+            user_id: userId,
+            filename: fileName,
+            file_size: fileSize,
+            mime_type: fileType,
+            upload_type: uploadType,
+            raw_text: result.raw_text,
+            structured_data: result.structured_data,
+            processing_method: result.processing_method,
+            confidence_score: result.confidence_score,
+            file_format: result.file_format
+          });
+
+        if (error) {
+          console.error('[cv-processor] Database storage error:', error);
+          // Don't fail the request, just log the error
+        } else {
+          console.log('[cv-processor] CV stored in database successfully');
+        }
+      } catch (dbError) {
+        console.error('[cv-processor] Database error:', dbError);
+        // Don't fail the request, just log the error
+      }
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -494,6 +597,39 @@ function cleanJsonResponse(content: string): string {
   }
   
   return content.trim();
+}
+
+// Helper function to extract user ID from Authorization header
+async function getUserFromAuth(authHeader: string | null): Promise<string | null> {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.substring(7);
+  
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    return user ? user.id : null;
+  } catch (error) {
+    console.error('[cv-processor] Auth error:', error);
+    return null;
+  }
+}
+
+// Process raw text input
+async function processRawText(text: string) {
+  console.log('[cv-processor] Processing raw text input...');
+  
+  const normalizedText = normalizeText(text);
+  const structuredData = await structureCV(normalizedText);
+  
+  return {
+    raw_text: normalizedText,
+    structured_data: structuredData,
+    processing_method: 'raw_text_input' as const,
+    confidence_score: 1.0,
+    file_format: 'raw' as const
+  };
 }
 
 // Helper function to return basic structure

@@ -125,6 +125,54 @@ export type Database = {
         }
         Relationships: []
       }
+      cv_uploads: {
+        Row: {
+          confidence_score: number | null
+          created_at: string
+          file_format: string | null
+          file_size: number | null
+          filename: string | null
+          id: string
+          mime_type: string | null
+          processing_method: string
+          raw_text: string
+          structured_data: Json
+          updated_at: string
+          upload_type: string
+          user_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string
+          file_format?: string | null
+          file_size?: number | null
+          filename?: string | null
+          id?: string
+          mime_type?: string | null
+          processing_method: string
+          raw_text: string
+          structured_data?: Json
+          updated_at?: string
+          upload_type: string
+          user_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          file_format?: string | null
+          file_size?: number | null
+          filename?: string | null
+          id?: string
+          mime_type?: string | null
+          processing_method?: string
+          raw_text?: string
+          structured_data?: Json
+          updated_at?: string
+          upload_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedbacks: {
         Row: {
           action_items: string[] | null
