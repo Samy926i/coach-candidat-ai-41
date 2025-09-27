@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.0.379";
+import { createCanvas } from "https://deno.land/x/canvas@v1.4.1/mod.ts";
 
 // Enhanced CORS headers for better multipart/form-data support
 const corsHeaders = {
@@ -18,8 +19,8 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Configure PDF.js for Deno environment - disable worker for Edge Functions
-pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+// Disable PDF.js worker for Deno Edge Functions - use workerless mode
+pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
 serve(async (req) => {
   // Enhanced CORS handling
@@ -616,90 +617,52 @@ function cleanJsonResponse(content: string): string {
   return content.trim();
 }
 
-// Helper function to convert PDF pages to images for OCR
+// Helper function to convert PDF pages to images for OCR using Canvas
 async function convertPDFToImages(arrayBuffer: ArrayBuffer): Promise<string[]> {
+  console.log('[cv-processor] Converting PDF to images using PDF.js and Canvas...');
+  
   try {
-    console.log('[cv-processor] Converting PDF to images using PDF.js...');
-    
-    // Load PDF with minimal configuration for Deno environment
-    const pdf = await pdfjsLib.getDocument({
-      data: arrayBuffer,
-      verbosity: 0,
-      useWorkerFetch: false,
-      isEvalSupported: false
-    }).promise;
-    
-    const imageDataUrls: string[] = [];
-    const maxPages = Math.min(pdf.numPages, 3); // Limit to first 3 pages for performance
-    
-    console.log(`[cv-processor] Processing ${maxPages} PDF pages for OCR...`);
-    
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const images: string[] = [];
+    const maxPages = Math.min(pdf.numPages, 10); // Limit to first 10 pages
+
+    console.log(`[cv-processor] Processing ${maxPages} pages for conversion...`);
+
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       try {
         const page = await pdf.getPage(pageNum);
         
-        // Set up viewport
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
+        // Set scale/resolution for better OCR quality
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = createCanvas(viewport.width, viewport.height);
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          throw new Error(`Could not get 2D context for page ${pageNum}`);
+        }
+
+        console.log(`[cv-processor] Rendering page ${pageNum} (${viewport.width}x${viewport.height})...`);
+
+        // Render page into canvas
+        await page.render({ canvasContext: context, viewport }).promise;
+
+        // Export as PNG base64
+        const pngBuffer = canvas.toBuffer("image/png");
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(pngBuffer)));
+        const dataUrl = `data:image/png;base64,${base64}`;
         
-        // Create an ImageData-like structure for rendering
-        const canvasFactory = {
-          create: (width: number, height: number) => {
-            return {
-              canvas: {
-                width,
-                height,
-                getContext: () => null
-              },
-              context: null
-            };
-          },
-          reset: () => {},
-          destroy: () => {}
-        };
+        images.push(dataUrl);
+        console.log(`[cv-processor] Converted page ${pageNum}/${pdf.numPages} to PNG (${Math.round(dataUrl.length / 1024)}KB)`);
         
-        // Try to render the page to capture image data
+        // Clean up page resources
+        page.cleanup();
+        
+      } catch (pageError) {
+        console.error(`[cv-processor] Error processing page ${pageNum}:`, pageError);
+        
+        // Try fallback text extraction for this page
         try {
-          // Create a simple PNG representation using page operators
-          const operatorList = await page.getOperatorList();
-          
-          // Extract graphics commands that represent images or paths
-          let hasImageContent = false;
-          for (const op of operatorList.fnArray) {
-            // Check if page contains image operations (paintImageXObject, etc.)
-            if (op === 85 || op === 86 || op === 87) { // Various image painting operations
-              hasImageContent = true;
-              break;
-            }
-          }
-          
-          if (hasImageContent) {
-            // Generate a simple image representation
-            // Since we can't actually render to canvas in Deno, we'll create a minimal PNG
-            const pngHeader = new Uint8Array([
-              0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-              0x00, 0x00, 0x00, 0x0D, // IHDR chunk size
-              0x49, 0x48, 0x44, 0x52, // IHDR
-              // Width (600px) and Height (800px) in big endian
-              0x00, 0x00, 0x02, 0x58, 0x00, 0x00, 0x03, 0x20,
-              0x08, 0x02, 0x00, 0x00, 0x00, // 8-bit RGB
-              0x4E, 0xD9, 0x2C, 0x60 // CRC
-            ]);
-            
-            // Create a basic image data URL
-            const base64 = btoa(String.fromCharCode(...pngHeader));
-            const imageUrl = `data:image/png;base64,${base64}`;
-            imageDataUrls.push(imageUrl);
-            
-            console.log(`[cv-processor] Created image representation for page ${pageNum}`);
-          } else {
-            console.log(`[cv-processor] Page ${pageNum} has no image content, skipping...`);
-          }
-          
-        } catch (renderError) {
-          console.warn(`[cv-processor] Could not render page ${pageNum}, trying text extraction:`, renderError);
-          
-          // Fallback: extract text from page
+          const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
           const pageText = textContent.items
             .filter((item: any) => 'str' in item)
@@ -707,29 +670,33 @@ async function convertPDFToImages(arrayBuffer: ArrayBuffer): Promise<string[]> {
             .join(' ');
           
           if (pageText.trim().length > 20) {
-            console.log(`[cv-processor] Extracted text from page ${pageNum} (${pageText.length} chars)`);
+            console.log(`[cv-processor] Fallback: extracted text from page ${pageNum} (${pageText.length} chars)`);
             
             // Convert text to base64 for processing
             const textAsBase64 = btoa(unescape(encodeURIComponent(pageText)));
             const textDataUrl = `data:text/plain;base64,${textAsBase64}`;
-            imageDataUrls.push(textDataUrl);
+            images.push(textDataUrl);
           }
+          
+          page.cleanup();
+        } catch (textError) {
+          console.error(`[cv-processor] Text extraction also failed for page ${pageNum}:`, textError);
         }
         
-        page.cleanup();
-        
-      } catch (pageError) {
-        console.error(`[cv-processor] Error processing page ${pageNum}:`, pageError);
         continue;
       }
     }
-    
-    console.log(`[cv-processor] Successfully processed ${imageDataUrls.length} pages from PDF`);
-    return imageDataUrls;
-    
+
+    if (images.length === 0) {
+      throw new Error('No pages could be converted to images or extracted as text');
+    }
+
+    console.log(`[cv-processor] Successfully converted ${images.length} pages to images/text`);
+    return images;
+
   } catch (error) {
-    console.error('[cv-processor] PDF processing failed:', error);
-    return [];
+    console.error('[cv-processor] PDF to image conversion failed:', error);
+    throw new Error(`Impossible de convertir le PDF en images pour OCR. Le document pourrait être corrompu, protégé ou incompatible.`);
   }
 }
 
