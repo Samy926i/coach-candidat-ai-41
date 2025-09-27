@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,12 +28,97 @@ export function CVUploadAnalyzer() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [isUploadingCV, setIsUploadingCV] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = () => {
-    toast({
-      title: "Import de CV",
-      description: "Copiez-collez le contenu de votre CV dans le champ ci-dessus"
-    });
+    fileInputRef.current?.click();
+  };
+
+  const processUploadedFile = async (file: File) => {
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Type de fichier non supporté",
+        description: "Veuillez uploader un fichier PDF, DOCX, DOC ou TXT",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "Fichier trop volumineux",
+        description: "La taille maximale autorisée est de 10MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingCV(true);
+
+    try {
+      // Convert file to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          const base64Data = base64.split(',')[1]; // Remove data:type;base64, prefix
+          resolve(base64Data);
+        };
+      });
+      
+      reader.readAsDataURL(file);
+      const base64Data = await base64Promise;
+
+      // Call CV processor
+      const response = await supabase.functions.invoke('cv-processor', {
+        body: {
+          fileData: base64Data,
+          fileName: file.name,
+          fileType: file.type
+        }
+      });
+
+      if (response.error) {
+        throw new Error('Erreur lors du traitement du CV');
+      }
+
+      const { cv_content } = response.data;
+      setCvContent(cv_content);
+
+      toast({
+        title: "CV importé avec succès",
+        description: "Le contenu de votre CV a été extrait et est prêt pour l'analyse"
+      });
+
+    } catch (error: any) {
+      console.error('CV upload error:', error);
+      toast({
+        title: "Erreur d'import",
+        description: error.message || "Une erreur s'est produite lors de l'import du CV",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingCV(false);
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      processUploadedFile(file);
+    }
   };
 
   const runCompleteAnalysis = async () => {
@@ -177,14 +262,28 @@ export function CVUploadAnalyzer() {
                 variant="outline"
                 size="sm"
                 onClick={handleFileUpload}
+                disabled={isUploadingCV}
               >
-                <Upload className="h-4 w-4 mr-2" />
-                Importer un CV
+                {isUploadingCV ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {isUploadingCV ? 'Import en cours...' : 'Importer un CV'}
               </Button>
               <span className="text-sm text-muted-foreground">
                 ou collez le contenu ci-dessous
               </span>
             </div>
+            
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
             <Textarea
               id="cv-content"
               placeholder="Collez le contenu de votre CV ici, ou utilisez le bouton 'Importer un CV' pour charger un fichier..."
