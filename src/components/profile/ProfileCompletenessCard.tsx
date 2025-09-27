@@ -152,10 +152,10 @@ export function ProfileCompletenessCard({ user }: ProfileCompletenessCardProps) 
               variant="outline" 
               size="sm" 
               className="w-full justify-start"
-              onClick={() => navigate('/onboarding/1')}
+              onClick={() => navigate('/cv-analysis')}
             >
               <FileText className="h-4 w-4 mr-2" />
-              Importer un CV
+              Analyser un CV
             </Button>
           )}
         </div>

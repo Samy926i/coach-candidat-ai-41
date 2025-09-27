@@ -30,11 +30,9 @@ export function CVUploadAnalyzer() {
   const [currentStep, setCurrentStep] = useState<string>('');
 
   const handleFileUpload = () => {
-    // Navigate to onboarding resume upload
-    window.open('/onboarding/1', '_blank');
     toast({
       title: "Import de CV",
-      description: "Utilisez l'onboarding pour charger votre CV"
+      description: "Copiez-collez le contenu de votre CV dans le champ ci-dessus"
     });
   };
 

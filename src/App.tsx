@@ -13,7 +13,6 @@ import CVAnalysis from "./pages/CVAnalysis";
 import Settings from "./pages/Settings";
 import Research from "./pages/Research";
 import NotFound from "./pages/NotFound";
-import OnboardingStep1 from "./pages/onboarding/Step1";
 import OnboardingStep2 from "./pages/onboarding/Step2";
 
 const queryClient = new QueryClient();
@@ -34,7 +33,6 @@ const App = () => (
           <Route path="/sessions/:id" element={<SessionDetail />} />
           <Route path="/cv-analysis" element={<CVAnalysis />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/onboarding/1" element={<OnboardingStep1 />} />
           <Route path="/onboarding/2" element={<OnboardingStep2 />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
