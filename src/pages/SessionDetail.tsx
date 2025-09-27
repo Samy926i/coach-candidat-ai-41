@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,32 +19,96 @@ import {
   Upload
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { mockSessions } from "@/lib/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function SessionDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Find session by ID (in real app, this would be from API/Supabase)
-  const session = mockSessions.find(s => s.id === id) || mockSessions[0];
-  const answers = session.answers || [];
-  const feedbacks = session.feedbacks || [];
-  const questions = session.questions || [];
+  // --- states Supabase ---
+  const [session, setSession] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<any[]>([]);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // --- charger données ---
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // session
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("interview_sessions")
+          .select("*")
+          .eq("id", id)
+          .single();
+        if (sessionError) throw sessionError;
+        setSession(sessionData);
+
+        // questions
+        const { data: questionsData, error: qError } = await supabase
+          .from("questions")
+          .select("*")
+          .eq("session_id", id)
+          .order("order_index", { ascending: true });
+        if (qError) throw qError;
+        setQuestions(questionsData);
+
+        // answers
+        const { data: answersData, error: aError } = await supabase
+          .from("answers")
+          .select("*")
+          .eq("session_id", id);
+        if (aError) throw aError;
+        setAnswers(answersData);
+
+        // feedbacks
+        const { data: feedbacksData, error: fError } = await supabase
+          .from("feedbacks")
+          .select("*")
+          .eq("session_id", id);
+        if (fError) throw fError;
+        setFeedbacks(feedbacksData);
+      } catch (err) {
+        console.error("❌ Erreur chargement session:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Session introuvable</p>
+      </div>
+    );
+  }
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(dateStr).toLocaleDateString("fr-FR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
-  const overallFeedback = feedbacks.find(f => f.feedback_type === 'overall');
-  const questionFeedbacks = feedbacks.filter(f => f.feedback_type === 'question');
+  const overallFeedback = feedbacks.find(f => f.feedback_type === "overall");
+  const questionFeedbacks = feedbacks.filter(f => f.feedback_type === "question");
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,7 +120,7 @@ export default function SessionDetail() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate("/dashboard")}
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Retour
@@ -64,7 +128,7 @@ export default function SessionDetail() {
               <div>
                 <h1 className="text-xl font-semibold">{session.title}</h1>
                 <p className="text-sm text-muted-foreground">
-                  {session.job_context?.company_name} • {formatDate(session.created_at)}
+                  {formatDate(session.created_at)}
                 </p>
               </div>
             </div>
@@ -92,17 +156,16 @@ export default function SessionDetail() {
             <TabsTrigger value="progress">Progression</TabsTrigger>
           </TabsList>
 
-          {/* Overview Tab */}
+          {/* --- Overview --- */}
           <TabsContent value="overview" className="space-y-6">
-            {/* Session Summary */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Résumé de la Session</span>
                   <Badge className={`capitalize ${
-                    session.status === 'completed' ? 'score-excellent border' : ''
+                    session.status === "completed" ? "score-excellent border" : ""
                   }`}>
-                    {session.status === 'completed' ? 'Terminé' : session.status}
+                    {session.status}
                   </Badge>
                 </CardTitle>
                 <CardDescription>
@@ -113,7 +176,7 @@ export default function SessionDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary mb-1">
-                      {session.overall_score?.toFixed(1) || '0.0'}/10
+                      {session.overall_score?.toFixed(1) || "0.0"}/10
                     </div>
                     <div className="text-sm text-muted-foreground">Score Global</div>
                   </div>
@@ -138,73 +201,9 @@ export default function SessionDetail() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Scores */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Scores par Compétence</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ScoreBadge 
-                    score={session.communication_score || 0} 
-                    label="Communication" 
-                    size="lg" 
-                  />
-                  <ScoreBadge 
-                    score={session.technical_score || 0} 
-                    label="Technique" 
-                    size="lg" 
-                  />
-                  <ScoreBadge 
-                    score={session.confidence_score || 0} 
-                    label="Confiance" 
-                    size="lg" 
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <CheckCircle className="h-5 w-5 text-accent" />
-                    <span>Points Forts</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {overallFeedback?.highlights?.slice(0, 3).map((highlight, index) => (
-                      <li key={index} className="flex items-start space-x-2 text-sm">
-                        <CheckCircle className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                        <span>{highlight}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Target className="h-5 w-5 text-coaching-score-average" />
-                    <span>À Améliorer</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {overallFeedback?.improvements?.slice(0, 3).map((improvement, index) => (
-                      <li key={index} className="flex items-start space-x-2 text-sm">
-                        <AlertCircle className="h-4 w-4 text-coaching-score-average mt-0.5 flex-shrink-0" />
-                        <span>{improvement}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
-          {/* Questions & Answers Tab */}
+          {/* --- Questions & Réponses --- */}
           <TabsContent value="questions" className="space-y-6">
             {questions.map((question, index) => {
               const answer = answers.find(a => a.question_id === question.id);
@@ -216,92 +215,33 @@ export default function SessionDetail() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">Question {index + 1}</CardTitle>
                       <div className="flex items-center space-x-2">
-                        <Badge className={`capitalize ${
-                          question.question_type === 'technical' ? 'score-good border' :
-                          question.question_type === 'behavioral' ? 'score-average border' :
-                          'score-excellent border'
-                        }`}>
-                          {question.question_type}
-                        </Badge>
+                        <Badge>{question.question_type}</Badge>
                         <Badge variant="outline">{question.difficulty}</Badge>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <h4 className="font-medium mb-2">Question:</h4>
-                      <p className="text-muted-foreground">{question.question_text}</p>
-                    </div>
+                    <p className="text-muted-foreground">{question.question_text}</p>
 
                     {answer && (
-                      <>
-                        <div>
-                          <h4 className="font-medium mb-2">Votre réponse:</h4>
-                          <div className="bg-muted p-4 rounded-lg">
-                            <p className="text-sm leading-relaxed">{answer.transcript}</p>
-                            <div className="flex items-center space-x-4 mt-3 text-xs text-muted-foreground">
-                              <span>Durée: {Math.floor((answer.duration_seconds || 0) / 60)}min</span>
-                              {answer.video_url && (
-                                <Button variant="ghost" size="sm">
-                                  <Play className="h-3 w-3 mr-1" />
-                                  Revoir la vidéo
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {answer.communication_score && (
-                            <ScoreBadge score={answer.communication_score} label="Communication" size="sm" />
-                          )}
-                          {answer.technical_score && (
-                            <ScoreBadge score={answer.technical_score} label="Technique" size="sm" />
-                          )}
-                          {answer.confidence_score && (
-                            <ScoreBadge score={answer.confidence_score} label="Confiance" size="sm" />
-                          )}
-                          {answer.clarity_score && (
-                            <ScoreBadge score={answer.clarity_score} label="Clarté" size="sm" />
+                      <div className="bg-muted p-4 rounded-lg">
+                        <p>{answer.transcript}</p>
+                        <div className="flex items-center space-x-4 mt-3 text-xs text-muted-foreground">
+                          <span>Durée: {Math.floor((answer.duration_seconds || 0) / 60)}min</span>
+                          {answer.video_url && (
+                            <Button variant="ghost" size="sm">
+                              <Play className="h-3 w-3 mr-1" />
+                              Revoir la vidéo
+                            </Button>
                           )}
                         </div>
-                      </>
+                      </div>
                     )}
 
                     {questionFeedback && (
-                      <div className="feedback-panel">
-                        <h4 className="font-medium mb-2">Feedback:</h4>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {questionFeedback.detailed_feedback}
-                        </p>
-                        
-                        {questionFeedback.highlights && questionFeedback.highlights.length > 0 && (
-                          <div className="mb-3">
-                            <h5 className="text-sm font-medium text-accent mb-1">Points forts:</h5>
-                            <ul className="text-sm space-y-1">
-                              {questionFeedback.highlights.map((highlight, idx) => (
-                                <li key={idx} className="flex items-start space-x-2">
-                                  <CheckCircle className="h-3 w-3 text-accent mt-0.5 flex-shrink-0" />
-                                  <span>{highlight}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {questionFeedback.improvements && questionFeedback.improvements.length > 0 && (
-                          <div>
-                            <h5 className="text-sm font-medium text-coaching-score-average mb-1">À améliorer:</h5>
-                            <ul className="text-sm space-y-1">
-                              {questionFeedback.improvements.map((improvement, idx) => (
-                                <li key={idx} className="flex items-start space-x-2">
-                                  <AlertCircle className="h-3 w-3 text-coaching-score-average mt-0.5 flex-shrink-0" />
-                                  <span>{improvement}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                      <div className="mt-3">
+                        <h4 className="font-medium">Feedback:</h4>
+                        <p className="text-sm text-muted-foreground">{questionFeedback.detailed_feedback}</p>
                       </div>
                     )}
                   </CardContent>
@@ -310,160 +250,33 @@ export default function SessionDetail() {
             })}
           </TabsContent>
 
-          {/* Detailed Feedback Tab */}
+          {/* --- Feedback global --- */}
           <TabsContent value="feedback" className="space-y-6">
-            {overallFeedback && (
+            {overallFeedback ? (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <MessageSquare className="h-5 w-5 text-primary" />
-                    <span>Feedback Global</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Analyse complète de votre performance d'entretien
-                  </CardDescription>
+                  <CardTitle>Feedback Global</CardTitle>
+                  <CardDescription>Analyse complète de votre performance</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <h3 className="font-semibold mb-3">Résumé:</h3>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {overallFeedback.detailed_feedback}
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-accent" />
-                        <span>Points Forts</span>
-                      </h3>
-                      <ul className="space-y-2">
-                        {overallFeedback.highlights?.map((highlight, index) => (
-                          <li key={index} className="flex items-start space-x-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                            <span>{highlight}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                        <Target className="h-4 w-4 text-coaching-score-average" />
-                        <span>Axes d'Amélioration</span>
-                      </h3>
-                      <ul className="space-y-2">
-                        {overallFeedback.improvements?.map((improvement, index) => (
-                          <li key={index} className="flex items-start space-x-2 text-sm">
-                            <AlertCircle className="h-4 w-4 text-coaching-score-average mt-0.5 flex-shrink-0" />
-                            <span>{improvement}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {overallFeedback.action_items && overallFeedback.action_items.length > 0 && (
-                    <div>
-                      <h3 className="font-semibold mb-3 flex items-center space-x-2">
-                        <TrendingUp className="h-4 w-4 text-primary" />
-                        <span>Plan d'Action</span>
-                      </h3>
-                      <ul className="space-y-2">
-                        {overallFeedback.action_items.map((action, index) => (
-                          <li key={index} className="flex items-start space-x-2 text-sm">
-                            <div className="w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center mt-0.5 flex-shrink-0">
-                              {index + 1}
-                            </div>
-                            <span>{action}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                <CardContent>
+                  <p className="text-muted-foreground">{overallFeedback.detailed_feedback}</p>
                 </CardContent>
               </Card>
+            ) : (
+              <p>Aucun feedback global</p>
             )}
           </TabsContent>
 
-          {/* Progress Tab */}
-          <TabsContent value="progress" className="space-y-6">
+          {/* --- Progression --- */}
+          <TabsContent value="progress">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  <span>Analyse de Progression</span>
-                </CardTitle>
-                <CardDescription>
-                  Comparaison avec vos sessions précédentes
-                </CardDescription>
+                <CardTitle>Analyse de Progression</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Graphique de progression disponible après plusieurs sessions</p>
-                  <p className="text-sm mt-2">Continuez à pratiquer pour voir votre évolution !</p>
-                </div>
+                <p className="text-muted-foreground">Graphique dispo après plusieurs sessions...</p>
               </CardContent>
             </Card>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Prochaines Étapes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <Button 
-                      className="w-full justify-start" 
-                      variant="outline"
-                      onClick={() => navigate('/interview')}
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      Nouvel Entretien de Pratique
-                    </Button>
-                    <Button 
-                      className="w-full justify-start" 
-                      variant="outline"
-                      onClick={() => navigate('/job-context')}
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Ajouter un Nouveau Contexte
-                    </Button>
-                    <Button 
-                      className="w-full justify-start" 
-                      variant="outline"
-                      onClick={() => navigate('/cv')}
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      Mettre à Jour mon CV
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Recommandations</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-3 text-sm">
-                    <li className="flex items-start space-x-2">
-                      <Target className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                      <span>Pratiquez les questions comportementales avec la méthode STAR</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <Target className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                      <span>Travaillez sur des exemples concrets avec des métriques</span>
-                    </li>
-                    <li className="flex items-start space-x-2">
-                      <Target className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
-                      <span>Répétez vos réponses pour améliorer la fluidité</span>
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
         </Tabs>
       </div>

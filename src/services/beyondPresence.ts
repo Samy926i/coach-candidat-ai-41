@@ -1,3 +1,4 @@
+// Crée un agent à partir d’un avatar
 export async function createAgent() {
   const response = await fetch("https://api.beyondpresence.ai/v1/agents", {
     method: "POST",
@@ -7,7 +8,7 @@ export async function createAgent() {
     },
     body: JSON.stringify({
       name: "Interview Coach",
-      avatar_id: "01234567-89ab-cdef-0123-456789abcdef", // récupère un avatar dispo
+      avatar_id: "694c83e2-8895-4a98-bd16-56332ca3f449", // ✅ c'est bien l'avatar
       system_prompt: "You are an AI recruiter that conducts interviews.",
       language: "fr",
       greeting: "Bonjour, prêt pour l'entretien ?",
@@ -16,9 +17,11 @@ export async function createAgent() {
     })
   });
 
-  return response.json();
+  if (!response.ok) throw new Error("Erreur création agent");
+  return response.json(); // ⚡ Vérifie que tu as { id: "...", ... }
 }
 
+// Crée une session à partir d’un agent (pas d’un avatar !)
 export async function createSession(agentId: string) {
   const response = await fetch("https://api.beyondpresence.ai/v1/sessions", {
     method: "POST",
@@ -27,10 +30,11 @@ export async function createSession(agentId: string) {
       "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY
     },
     body: JSON.stringify({
-      agent_id: agentId
+      agent_id: agentId // ✅ bien l'id de l'agent créé
     })
   });
 
+  if (!response.ok) throw new Error("Erreur création session");
   return response.json();
 }
 
@@ -42,7 +46,7 @@ export async function startInterview(role: string) {
       "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY,
     },
     body: JSON.stringify({
-      agent_id: "01234567-89ab-cdef-0123-456789abcdef", // ID de ton agent
+      agent_id: "694c83e2-8895-4a98-bd16-56332ca3f449", // ID de ton agent
       metadata: { role }
     }),
   });
@@ -65,5 +69,15 @@ export async function endInterview(sessionId: string) {
   });
 
   if (!response.ok) throw new Error("Erreur fin de session");
+  return response.json();
+}
+
+export async function getSessionResults(sessionId: string) {
+  const response = await fetch(`https://api.beyondpresence.ai/v1/sessions/${sessionId}/results`, {
+    headers: {
+      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY
+    }
+  });
+  if (!response.ok) throw new Error("Impossible de récupérer les résultats");
   return response.json();
 }
