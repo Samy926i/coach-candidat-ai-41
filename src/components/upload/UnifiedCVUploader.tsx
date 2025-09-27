@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import * as pdfjsLib from 'pdfjs-dist';
 import { 
   Upload, 
   FileText, 
@@ -19,8 +20,13 @@ import {
   Briefcase,
   GraduationCap,
   Award,
-  Languages
+  Languages,
+  Search,
+  Brain
 } from 'lucide-react';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js`;
 
 interface CVUploadResult {
   raw_text: string;
@@ -50,9 +56,11 @@ interface CVUploadResult {
     languages?: string[];
     certifications?: string[];
   };
-  processing_method: 'text_extraction' | 'docx_extraction' | 'txt_direct' | 'ocr_gpt4' | 'raw_text_input';
+  processing_method: 'text_extraction' | 'docx_extraction' | 'txt_direct' | 'ocr_image' | 'raw_text_input';
   confidence_score: number;
   file_format: 'pdf' | 'docx' | 'txt' | 'raw';
+  embedding?: number[];
+  cv_id?: string;
 }
 
 export function UnifiedCVUploader() {
@@ -63,6 +71,7 @@ export function UnifiedCVUploader() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [result, setResult] = useState<CVUploadResult | null>(null);
   const [currentStep, setCurrentStep] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,6 +107,42 @@ export function UnifiedCVUploader() {
     setResult(null);
   };
 
+  // Convert PDF pages to images using PDF.js
+  const convertPDFToImages = useCallback(async (file: File): Promise<string[]> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const images: string[] = [];
+    
+    const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages for performance
+    
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 }); // High resolution
+      
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d')!;
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      
+      // Render page to canvas
+      await page.render({
+        canvasContext: context,
+        viewport: viewport,
+        canvas: canvas
+      }).promise;
+      
+      // Convert to base64 PNG
+      const imageDataUrl = canvas.toDataURL('image/png');
+      images.push(imageDataUrl);
+      
+      // Clean up
+      page.cleanup();
+    }
+    
+    return images;
+  }, []);
+
   const processInput = async () => {
     if (!selectedFile && !rawText.trim()) {
       toast({
@@ -112,26 +157,39 @@ export function UnifiedCVUploader() {
     setCurrentStep('Initialisation...');
 
     try {
-      let response;
+      let requestData: any;
 
       if (activeTab === 'file' && selectedFile) {
-        // File upload
-        setCurrentStep('Traitement du fichier...');
-        
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
-        response = await supabase.functions.invoke('cv-processor', {
-          body: formData
-        });
+        // Check if it's a PDF that needs image conversion
+        if (selectedFile.type === 'application/pdf') {
+          setCurrentStep('Conversion PDF en images...');
+          const images = await convertPDFToImages(selectedFile);
+          
+          requestData = {
+            images: images,
+            fileName: selectedFile.name,
+            fileType: selectedFile.type,
+            fileSize: selectedFile.size,
+            uploadType: 'pdf_images'
+          };
+        } else {
+          // For non-PDF files, use FormData
+          setCurrentStep('Traitement du fichier...');
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          
+          requestData = formData;
+        }
       } else {
         // Raw text input
         setCurrentStep('Traitement du texte...');
-        
-        response = await supabase.functions.invoke('cv-processor', {
-          body: { cvContent: rawText }
-        });
+        requestData = { cvContent: rawText };
       }
+
+      setCurrentStep('Envoi pour traitement...');
+      const response = await supabase.functions.invoke('cv-processor', {
+        body: requestData
+      });
 
       if (response.error) {
         throw new Error(response.error.message || 'Erreur lors du traitement');
@@ -144,13 +202,13 @@ export function UnifiedCVUploader() {
         'text_extraction': 'Extraction de texte directe',
         'docx_extraction': 'Extraction DOCX',
         'txt_direct': 'Lecture directe TXT',
-        'ocr_gpt4': 'OCR avec GPT-4o mini',
+        'ocr_image': 'OCR avec Images',
         'raw_text_input': 'Texte brut'
       };
 
       toast({
         title: "CV traité avec succès",
-        description: `Méthode: ${methodNames[processedData.processing_method]} (${Math.round(processedData.confidence_score * 100)}% de confiance)`
+        description: `Méthode: ${methodNames[processedData.processing_method]} • ${Math.round(processedData.confidence_score * 100)}% confiance ${processedData.cv_id ? '• Stocké avec embeddings' : ''}`
       });
 
     } catch (error: any) {
@@ -166,6 +224,56 @@ export function UnifiedCVUploader() {
       setCurrentStep('');
     }
   };
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const file = files[0];
+    
+    if (file) {
+      // Directly set the file and validate it
+      const allowedTypes = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/msword',
+        'text/plain'
+      ];
+
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Type de fichier non supporté",
+          description: "Veuillez uploader un fichier PDF, DOCX, DOC ou TXT",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (file.size > 20 * 1024 * 1024) { // 20MB limit
+        toast({
+          title: "Fichier trop volumineux",
+          description: "La taille maximale autorisée est de 20MB",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setSelectedFile(file);
+      setResult(null);
+    }
+  }, [toast]);
 
   const downloadTXT = () => {
     if (!result) return;
@@ -198,7 +306,7 @@ export function UnifiedCVUploader() {
       'text_extraction': 'default',
       'docx_extraction': 'secondary',
       'txt_direct': 'outline',
-      'ocr_gpt4': 'secondary',
+      'ocr_image': 'secondary',
       'raw_text_input': 'default'
     } as const;
     
@@ -206,7 +314,7 @@ export function UnifiedCVUploader() {
       'text_extraction': 'PDF Direct',
       'docx_extraction': 'DOCX',
       'txt_direct': 'TXT Direct',
-      'ocr_gpt4': 'OCR GPT-4',
+      'ocr_image': 'OCR Images',
       'raw_text_input': 'Texte Brut'
     };
     
@@ -223,11 +331,11 @@ export function UnifiedCVUploader() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <FileText className="h-5 w-5 text-primary" />
-            <span>Upload de CV Unifié</span>
+            <Brain className="h-5 w-5 text-primary" />
+            <span>Upload de CV Unifié avec IA</span>
           </CardTitle>
           <CardDescription>
-            Téléchargez un fichier CV ou collez le texte directement. Traitement automatique avec OCR si nécessaire.
+            Téléchargez un CV (PDF, DOCX, TXT) ou collez le texte. Conversion automatique PDF→Images pour OCR, génération d'embeddings pour recherche sémantique.
           </CardDescription>
         </CardHeader>
         
@@ -239,7 +347,14 @@ export function UnifiedCVUploader() {
             </TabsList>
 
             <TabsContent value="file" className="space-y-4">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <div 
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  isDragging ? 'border-primary bg-primary/5' : 'border-gray-300'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx,.txt"
@@ -250,10 +365,12 @@ export function UnifiedCVUploader() {
                   disabled={isProcessing}
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                  <p className="text-lg font-medium">Sélectionnez un fichier CV</p>
+                  <Upload className={`mx-auto h-12 w-12 mb-4 ${isDragging ? 'text-primary' : 'text-gray-400'}`} />
+                  <p className="text-lg font-medium">
+                    {isDragging ? 'Déposez votre fichier ici' : 'Sélectionnez ou glissez un fichier CV'}
+                  </p>
                   <p className="text-sm text-gray-500 mt-1">
-                    PDF, DOCX, DOC, TXT (max 20MB)
+                    PDF (auto-converti en images), DOCX, DOC, TXT (max 20MB)
                   </p>
                 </label>
               </div>
@@ -333,6 +450,12 @@ export function UnifiedCVUploader() {
                   <Badge variant="outline">
                     {Math.round(result.confidence_score * 100)}% confiance
                   </Badge>
+                  {result.embedding && (
+                    <Badge variant="secondary" className="flex items-center space-x-1">
+                      <Search className="h-3 w-3" />
+                      <span>Embeddings</span>
+                    </Badge>
+                  )}
                 </div>
               </div>
               <div className="flex items-center space-x-2 mt-2">

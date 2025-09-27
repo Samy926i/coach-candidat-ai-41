@@ -19,6 +19,15 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Initialize database with pgvector extension (run once)
+async function ensurePgVectorSetup() {
+  try {
+    await supabase.rpc('create_extension_if_not_exists', { extension_name: 'vector' });
+  } catch (error) {
+    console.log('[cv-processor] pgvector already enabled or error:', error);
+  }
+}
+
 // Disable PDF.js worker for Deno Edge Functions - use workerless mode
 pdfjsLib.GlobalWorkerOptions.workerSrc = "";
 
@@ -62,7 +71,7 @@ serve(async (req) => {
       uploadType = 'file';
       
     } else if (contentType.includes('application/json')) {
-      // JSON input (base64 file or raw text)
+      // JSON input (images, base64 file, or raw text)
       const jsonData = await req.json();
       
       if (jsonData.cvContent) {
@@ -72,6 +81,25 @@ serve(async (req) => {
         fileName = 'raw_input.txt';
         fileType = 'text/plain';
         fileSize = rawText ? rawText.length : 0;
+        
+      } else if (jsonData.images && jsonData.fileName) {
+        // PDF converted to images on frontend
+        console.log(`[cv-processor] Received ${jsonData.images.length} images from frontend PDF conversion`);
+        
+        // Process images directly with OCR
+        const result = await processImageArray(jsonData.images, jsonData.fileName);
+        
+        // Generate embeddings and store
+        const cvId = await storeWithEmbeddings(result, {
+          fileName: jsonData.fileName,
+          fileType: jsonData.fileType || 'application/pdf',
+          fileSize: jsonData.fileSize || 0,
+          uploadType: 'pdf_images'
+        }, req.headers.get('Authorization'));
+        
+        return new Response(JSON.stringify({ ...result, cv_id: cvId }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
         
       } else if (jsonData.fileData && jsonData.fileName) {
         // Base64 file input
@@ -96,7 +124,7 @@ serve(async (req) => {
           throw new Error('Invalid base64 file data');
         }
       } else {
-        throw new Error('Invalid JSON input - expected cvContent or fileData + fileName');
+        throw new Error('Invalid JSON input - expected cvContent, images, or fileData + fileName');
       }
     } else {
       throw new Error('Unsupported content type - use multipart/form-data or application/json');
@@ -133,40 +161,15 @@ serve(async (req) => {
 
     console.log(`[cv-processor] Successfully processed CV using ${result.processing_method}`);
 
-    // Store in database if user is authenticated
-    const authHeader = req.headers.get('Authorization');
-    const userId = await getUserFromAuth(authHeader);
-    
-    if (userId) {
-      try {
-        const { error } = await supabase
-          .from('cv_uploads')
-          .insert({
-            user_id: userId,
-            filename: fileName,
-            file_size: fileSize,
-            mime_type: fileType,
-            upload_type: uploadType,
-            raw_text: result.raw_text,
-            structured_data: result.structured_data,
-            processing_method: result.processing_method,
-            confidence_score: result.confidence_score,
-            file_format: result.file_format
-          });
+    // Generate embeddings and store with semantic search capability
+    const cvId = await storeWithEmbeddings(result, {
+      fileName,
+      fileType,
+      fileSize,
+      uploadType
+    }, req.headers.get('Authorization'));
 
-        if (error) {
-          console.error('[cv-processor] Database storage error:', error);
-          // Don't fail the request, just log the error
-        } else {
-          console.log('[cv-processor] CV stored in database successfully');
-        }
-      } catch (dbError) {
-        console.error('[cv-processor] Database error:', dbError);
-        // Don't fail the request, just log the error
-      }
-    }
-
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify({ ...result, cv_id: cvId }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
@@ -767,4 +770,170 @@ function getBasicStructure() {
     languages: [],
     certifications: []
   };
+}
+
+// Process images array received from frontend
+async function processImageArray(images: string[], fileName: string) {
+  console.log(`[cv-processor] Processing ${images.length} images from frontend`);
+  
+  if (!openAIApiKey) {
+    throw new Error('Clé API OpenAI non configurée. OCR impossible.');
+  }
+
+  let combinedText = '';
+  
+  for (let i = 0; i < images.length; i++) {
+    const imageDataUrl = images[i];
+    console.log(`[cv-processor] Processing image ${i + 1}/${images.length}...`);
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert OCR system. Extract ALL text from the document while preserving structure and formatting. Return clean, readable UTF-8 text.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `Extract all text from this CV/resume document page ${i + 1}. Preserve the original structure, formatting, and hierarchy. Include all contact information, experience, education, skills, and other relevant sections. Return clean UTF-8 text that maintains readability.`
+              },
+              {
+                type: 'image_url',
+                image_url: { 
+                  url: imageDataUrl,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.1
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[cv-processor] OpenAI API error for image ${i + 1}:`, response.status, errorText);
+      continue;
+    }
+
+    const data = await response.json();
+    const pageText = data.choices[0]?.message?.content || '';
+    
+    if (pageText.trim()) {
+      combinedText += (combinedText ? '\n\n--- Page ' + (i + 1) + ' ---\n\n' : '') + pageText;
+    }
+    
+    // Add small delay between API calls
+    if (i < images.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+  
+  if (combinedText.length < 50) {
+    throw new Error('Extraction de texte insuffisante - les images pourraient être vides ou illisibles');
+  }
+
+  console.log(`[cv-processor] Image processing successful (${combinedText.length} chars extracted from ${images.length} images)`);
+  
+  const normalizedText = normalizeText(combinedText);
+  const structuredData = await structureCV(normalizedText);
+  
+  return {
+    raw_text: normalizedText,
+    structured_data: structuredData,
+    processing_method: 'ocr_image' as const,
+    confidence_score: 0.85,
+    file_format: 'pdf' as const
+  };
+}
+
+// Generate embeddings and store CV in database
+async function storeWithEmbeddings(
+  result: any,
+  fileInfo: { fileName: string | null; fileType: string | null; fileSize: number; uploadType: string },
+  authHeader: string | null
+): Promise<string | null> {
+  try {
+    console.log('[cv-processor] Generating embeddings and storing CV...');
+    
+    // Ensure pgvector is setup
+    await ensurePgVectorSetup();
+
+    // Generate embeddings for the text
+    let embedding: number[] | null = null;
+    
+    if (openAIApiKey && result.raw_text.length > 50) {
+      console.log('[cv-processor] Generating OpenAI embeddings...');
+      
+      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'text-embedding-ada-002',
+          input: result.raw_text.slice(0, 8000) // Limit to 8k chars for embedding
+        })
+      });
+
+      if (embeddingResponse.ok) {
+        const embeddingData = await embeddingResponse.json();
+        embedding = embeddingData.data[0]?.embedding || null;
+        console.log(`[cv-processor] Generated embedding with ${embedding?.length || 0} dimensions`);
+      } else {
+        console.warn('[cv-processor] Failed to generate embeddings:', await embeddingResponse.text());
+      }
+    }
+
+    // Get user ID if authenticated
+    const userId = await getUserFromAuth(authHeader);
+    
+    // Store in database with embeddings
+    const insertData: any = {
+      filename: fileInfo.fileName,
+      file_size: fileInfo.fileSize,
+      mime_type: fileInfo.fileType,
+      upload_type: fileInfo.uploadType,
+      raw_text: result.raw_text,
+      structured_data: result.structured_data,
+      processing_method: result.processing_method,
+      confidence_score: result.confidence_score,
+      file_format: result.file_format,
+      embedding: embedding ? `[${embedding.join(',')}]` : null // Convert to PostgreSQL array format
+    };
+
+    if (userId) {
+      insertData.user_id = userId;
+    }
+
+    const { data, error } = await supabase
+      .from('cv_uploads')
+      .insert(insertData)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[cv-processor] Database storage error:', error);
+      return null;
+    }
+
+    console.log(`[cv-processor] CV stored with ID: ${data.id}${embedding ? ' (with embeddings)' : ''}`);
+    return data.id;
+
+  } catch (error) {
+    console.error('[cv-processor] Error storing CV with embeddings:', error);
+    return null;
+  }
 }
