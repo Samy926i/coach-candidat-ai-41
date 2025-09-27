@@ -1,8 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  Button, Card, CardContent, CardDescription, CardHeader, CardTitle,
-  Input, Label, Textarea, Badge, Tabs, TabsContent, TabsList, TabsTrigger
-} from '@/components/ui';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -123,7 +126,7 @@ export function UnifiedCVUploader() {
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        await page.render({ canvasContext: context, viewport, canvas }).promise;
 
         images.push(canvas.toDataURL('image/png'));
 
