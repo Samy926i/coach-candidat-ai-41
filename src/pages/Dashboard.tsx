@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { SessionList } from "@/components/coaching/SessionList";
 import { TrendChart } from "@/components/coaching/TrendChart";
 import { ScoreBadge } from "@/components/coaching/ScoreBadge";
+import { AccountLinkingBanner } from "@/components/ui/account-linking-banner";
 import { 
   Video, 
   TrendingUp, 
@@ -23,11 +24,24 @@ import type { User } from "@supabase/supabase-js";
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const [showAccountLinking, setShowAccountLinking] = useState(false);
   
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      
+      // Check if user has LinkedIn linked
+      if (session?.user) {
+        const identities = session.user.identities || [];
+        const hasLinkedIn = identities.some(identity => identity.provider === 'linkedin_oidc');
+        const hasOtherProvider = identities.some(identity => 
+          identity.provider === 'google' || identity.provider === 'email'
+        );
+        
+        // Show linking banner if user has other providers but not LinkedIn
+        setShowAccountLinking(hasOtherProvider && !hasLinkedIn);
+      }
     });
 
     // Listen for auth changes
@@ -36,6 +50,14 @@ export default function Dashboard() {
         setUser(session?.user ?? null);
         if (!session?.user) {
           navigate('/auth');
+        } else {
+          // Update linking banner visibility
+          const identities = session.user.identities || [];
+          const hasLinkedIn = identities.some(identity => identity.provider === 'linkedin_oidc');
+          const hasOtherProvider = identities.some(identity => 
+            identity.provider === 'google' || identity.provider === 'email'
+          );
+          setShowAccountLinking(hasOtherProvider && !hasLinkedIn);
         }
       }
     );
@@ -94,7 +116,12 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="container mx-auto px-4 py-8 space-y-6">
+        {/* Account Linking Banner */}
+        {showAccountLinking && (
+          <AccountLinkingBanner onDismiss={() => setShowAccountLinking(false)} />
+        )}
+
         {/* Welcome Section */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">
