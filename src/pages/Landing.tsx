@@ -88,12 +88,12 @@ export default function Landing() {
                 Essayer la démo
               </Button>
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="lg"
                 className="text-lg px-8 py-3"
-                onClick={() => navigate('/cv-import')}
+                onClick={() => navigate('/auth')}
               >
-                Importer mon CV
+                Commencer
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>

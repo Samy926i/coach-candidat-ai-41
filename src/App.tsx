@@ -9,8 +9,6 @@ import Dashboard from "./pages/Dashboard";
 import JobContext from "./pages/JobContext";
 import Interview from "./pages/Interview";
 import SessionDetail from "./pages/SessionDetail";
-import CVImportPage from "@/pages/CVImport";
-import CVUpload from "./pages/CVUpload";
 import CVAnalysis from "./pages/CVAnalysis";
 import Settings from "./pages/Settings";
 import Research from "./pages/Research";
@@ -34,8 +32,6 @@ const App = () => (
           <Route path="/job-context" element={<JobContext />} />
           <Route path="/interview" element={<Interview />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
-          <Route path="/cv-import" element={<CVImportPage />} />
-          <Route path="/cv" element={<CVUpload />} />
           <Route path="/cv-analysis" element={<CVAnalysis />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/onboarding/1" element={<OnboardingStep1 />} />

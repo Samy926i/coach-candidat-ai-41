@@ -209,12 +209,12 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/cv-import')}
+                onClick={() => navigate('/onboarding/1')}
               >
                 <FileText className="h-6 w-6 text-blue-600" />
                 <div className="text-center">
                   <div className="font-semibold">Importer CV</div>
-                  <div className="text-xs text-muted-foreground">PDF/DOCX/TXT → Structure</div>
+                  <div className="text-xs text-muted-foreground">Via l'onboarding</div>
                 </div>
               </Button>
               
@@ -346,7 +346,7 @@ export default function Dashboard() {
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate('/cv-import')}>
+                onClick={() => navigate('/onboarding/1')}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Target className="h-5 w-5 text-accent" />
@@ -355,7 +355,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Téléchargez votre CV pour des questions personnalisées
+                Téléchargez votre CV via l'onboarding
               </p>
             </CardContent>
           </Card>

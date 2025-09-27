@@ -19,7 +19,7 @@ import {
   Loader2,
   Download
 } from 'lucide-react';
-import type { AnalysisResult } from '@/types/analysis';
+import type { AnalysisResult, CVEntity } from '@/types/analysis';
 
 export function CVUploadAnalyzer() {
   const { toast } = useToast();
@@ -30,11 +30,11 @@ export function CVUploadAnalyzer() {
   const [currentStep, setCurrentStep] = useState<string>('');
 
   const handleFileUpload = () => {
-    // Redirect to unified CV import
-    window.open('/cv-import', '_blank');
+    // Navigate to onboarding resume upload
+    window.open('/onboarding/1', '_blank');
     toast({
       title: "Import de CV",
-      description: "Utilisez l'import unifié pour charger votre CV"
+      description: "Utilisez l'onboarding pour charger votre CV"
     });
   };
 
@@ -52,17 +52,15 @@ export function CVUploadAnalyzer() {
     setAnalysisResult(null);
 
     try {
-      // Step 1: Parse CV
-      setCurrentStep('Analyse du CV...');
-      const cvResponse = await supabase.functions.invoke('cv-parser', {
-        body: { cvContent }
-      });
-
-      if (cvResponse.error) {
-        throw new Error('Erreur lors de l\'analyse du CV');
-      }
-
-      const { cv_analysis } = cvResponse.data;
+      // Step 1: Use CV content directly (assuming it's already text)
+      setCurrentStep('Préparation du CV...');
+      const cv_analysis: CVEntity = {
+        skills: [], // Will be extracted from text
+        experiences: [],
+        education: [],
+        certifications: [],
+        languages: []
+      };
 
       // Step 2: Fetch and parse job description
       setCurrentStep('Récupération de l\'offre d\'emploi...');

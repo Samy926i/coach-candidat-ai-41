@@ -44,13 +44,7 @@ export default function CVAnalysis() {
             <div className="mt-4 p-4 bg-muted rounded-lg">
               <p className="text-sm">
                 💡 <strong>Nouveau CV ?</strong> Utilisez d'abord l'
-                <Button 
-                  variant="link" 
-                  className="p-0 h-auto text-primary"
-                  onClick={() => navigate('/cv-import')}
-                >
-                  import unifié
-                </Button>
+                  onboarding
                 {" "}pour traiter vos fichiers PDF, DOCX ou TXT.
               </p>
             </div>
