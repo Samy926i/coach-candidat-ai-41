@@ -345,20 +345,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate('/cv-analysis')}>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Target className="h-5 w-5 text-accent" />
-                <span>Analyser CV</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Collez votre CV pour l'analyser
-              </p>
-            </CardContent>
-          </Card>
 
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => navigate('/cv-analysis')}>
