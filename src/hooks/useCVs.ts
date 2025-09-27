@@ -17,6 +17,8 @@ export interface CVUpload {
   is_default: boolean;
   created_at: string;
   updated_at: string;
+  file_data?: string | null;
+  file_url?: string | null;
 }
 
 export function useCVs() {
@@ -30,9 +32,17 @@ export function useCVs() {
       setLoading(true);
       setError(null);
       
+      // CORRECTION SÉCURITE CRITIQUE: Filtrer par user_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setCvs([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('cv_uploads')
         .select('*')
+        .eq('user_id', user.id) // FILTRE SÉCURISÉ PAR UTILISATEUR
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
@@ -116,6 +126,23 @@ export function useCVs() {
     return cvs.length;
   };
 
+  // Nouvelles fonctions pour différencier les types de CVs
+  const getDirectCVs = () => {
+    return cvs.filter(cv => cv.upload_type === 'direct');
+  };
+
+  const getParsedCVs = () => {
+    return cvs.filter(cv => cv.upload_type !== 'direct');
+  };
+
+  const getTotalDirectCVs = () => {
+    return getDirectCVs().length;
+  };
+
+  const getTotalParsedCVs = () => {
+    return getParsedCVs().length;
+  };
+
   useEffect(() => {
     fetchCVs();
   }, []);
@@ -129,6 +156,10 @@ export function useCVs() {
     deleteCV,
     getDefaultCV,
     getTotalCVs,
+    getDirectCVs,
+    getParsedCVs,
+    getTotalDirectCVs,
+    getTotalParsedCVs,
     refreshCVs: fetchCVs
   };
 }

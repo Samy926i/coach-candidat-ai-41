@@ -32,7 +32,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [showAccountLinking, setShowAccountLinking] = useState(false);
-  const { getTotalCVs, getDefaultCV } = useCVs();
+  const { getTotalDirectCVs, getDirectCVs } = useCVs();
   
   useEffect(() => {
     // Get initial session
@@ -366,29 +366,37 @@ export default function Dashboard() {
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate('/my-cvs')}>
+                onClick={() => navigate('/cv-management')}>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Archive className="h-5 w-5 text-primary" />
                   <span>Mes CV</span>
                 </div>
-                {getTotalCVs() > 0 && (
-                  <Badge variant="secondary">{getTotalCVs()}</Badge>
+                {getTotalDirectCVs() > 0 && (
+                  <Badge variant="secondary">{getTotalDirectCVs()}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {getTotalCVs() === 0 
+                {getTotalDirectCVs() === 0 
                   ? "Aucun CV importé" 
-                  : `${getTotalCVs()} CV${getTotalCVs() > 1 ? 's' : ''} dans votre bibliothèque`
+                  : `${getTotalDirectCVs()} CV${getTotalDirectCVs() > 1 ? 's' : ''} dans votre bibliothèque`
                 }
               </p>
-              {getDefaultCV() && (
+              {getDirectCVs().find(cv => cv.is_default) && (
                 <div className="mt-2 flex items-center text-xs text-muted-foreground">
                   <Star className="h-3 w-3 text-yellow-500 mr-1" />
-                  CV principal: {getDefaultCV()?.filename || 'CV directement saisi'}
+                  CV principal: {getDirectCVs().find(cv => cv.is_default)?.filename || 'CV uploadé'}
+                </div>
+              )}
+              {getTotalDirectCVs() === 0 && (
+                <div className="mt-2">
+                  <Button size="sm" variant="outline" className="text-xs">
+                    <Plus className="h-3 w-3 mr-1" />
+                    Importer un CV
+                  </Button>
                 </div>
               )}
             </CardContent>
