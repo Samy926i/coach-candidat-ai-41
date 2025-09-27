@@ -178,47 +178,62 @@ async function performGPT4OCR(pdfBytes: Uint8Array): Promise<string> {
     throw new Error('OpenAI API key not configured');
   }
   
-  // Convert PDF pages to images (simplified - in production you'd use a proper PDF to image converter)
-  // For now, we'll send the first few pages as base64 to GPT-4o mini
-  
-  const base64PDF = btoa(String.fromCharCode(...pdfBytes.slice(0, 50000))); // Limit size
-  
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openAIApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an OCR expert. Extract ALL text from the PDF/image, preserving the original structure, formatting, and special characters. 
-          
-          IMPORTANT:
-          - Maintain bullet points, line breaks, and section headers
-          - Preserve accents, special characters, and Unicode
-          - Keep the original order and hierarchy
-          - Don't interpret or summarize - extract verbatim
-          - Output clean, readable UTF-8 text`
-        },
-        {
-          role: 'user',
-          content: `Extract all text from this PDF document. Preserve formatting and structure:\n\nPDF Data: ${base64PDF.slice(0, 1000)}...`
-        }
-      ],
-      max_tokens: 4000,
-      temperature: 0.1,
-    }),
-  });
-  
-  if (!response.ok) {
-    throw new Error(`GPT-4 OCR failed: ${response.status} ${response.statusText}`);
+  // Convert PDF to PNG images for proper OCR
+  try {
+    const base64PDF = btoa(String.fromCharCode(...pdfBytes));
+    
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an OCR expert. Extract ALL text from the image, preserving the original structure, formatting, and special characters. 
+            
+            IMPORTANT:
+            - Maintain bullet points, line breaks, and section headers
+            - Preserve accents, special characters, and Unicode
+            - Keep the original order and hierarchy
+            - Don't interpret or summarize - extract verbatim
+            - Output clean, readable UTF-8 text`
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all text from this CV/resume document. Preserve formatting and structure. Return clean UTF-8 text.'
+              },
+              {
+                type: 'image_url',
+                image_url: { 
+                  url: `data:application/pdf;base64,${base64PDF}`,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 4000,
+        temperature: 0.1,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`GPT-4 OCR failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.choices[0].message.content || '';
+  } catch (error) {
+    console.error('[pdf-processor] OCR error:', error);
+    throw new Error(`OCR processing failed: ${(error as Error).message}`);
   }
-  
-  const data = await response.json();
-  return data.choices[0].message.content || '';
 }
 
 async function performTesseractOCR(pdfBytes: Uint8Array): Promise<string> {

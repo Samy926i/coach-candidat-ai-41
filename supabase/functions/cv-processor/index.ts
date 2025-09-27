@@ -250,7 +250,16 @@ async function performOCR(arrayBuffer: ArrayBuffer, format: string, fileSize: nu
       }
     }
     
-    const dataUrl = `data:application/${format};base64,${base64}`;
+    // For PDF files, we need to convert to image format first
+    let dataUrl;
+    if (format === 'pdf') {
+      // For PDFs, GPT-4o-mini can handle PDF directly via image_url
+      dataUrl = `data:application/pdf;base64,${base64}`;
+    } else {
+      // For other formats, use the original format
+      dataUrl = `data:application/${format};base64,${base64}`;
+    }
+    
     console.log(`[cv-processor] Base64 conversion complete (${base64.length} chars)`);
 
     console.log('[cv-processor] Calling OpenAI vision API...');
