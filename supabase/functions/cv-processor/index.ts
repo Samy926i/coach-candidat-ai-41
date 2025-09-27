@@ -2,7 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import * as pdfjsLib from "https://esm.sh/pdfjs-dist@4.0.379";
-import { createCanvas } from "https://deno.land/x/canvas@v1.4.1/mod.ts";
+// Removed canvas import as it causes __dirname error in Deno Edge Functions
 
 // Enhanced CORS headers for better multipart/form-data support
 const corsHeaders = {
