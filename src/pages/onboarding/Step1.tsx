@@ -42,9 +42,7 @@ export default function Step1() {
   const isLoading = isConnecting || isUploading;
 
   const handleNext = () => {
-    if (canProceed && !isLoading) {
-      navigate('/onboarding/2');
-    }
+    navigate('/onboarding/2');
   };
 
   return (
@@ -105,17 +103,10 @@ export default function Step1() {
         <div className="flex justify-end pt-4">
           <Button
             onClick={handleNext}
-            disabled={!canProceed || isLoading}
-            variant={canProceed && !isLoading ? "default" : "outline"}
-            className={`
-              transition-all duration-200
-              ${canProceed && !isLoading 
-                ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
-                : 'text-muted-foreground'
-              }
-            `}
+            disabled={isLoading}
+            className="transition-all duration-200"
           >
-            {!canProceed ? 'Skip' : 'Next'}
+            {!canProceed ? 'Passer' : 'Suivant'}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
