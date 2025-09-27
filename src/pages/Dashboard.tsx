@@ -15,7 +15,9 @@ import {
   BarChart3,
   Users,
   Clock,
-  Brain
+  Brain,
+  FileText,
+  Globe
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { mockKPIData, mockChartData, mockSessions } from "@/lib/mock-data";
@@ -192,6 +194,55 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions rapides</CardTitle>
+            <CardDescription>
+              Accédez rapidement aux outils d'analyse et de préparation d'entretien
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col space-y-2"
+                onClick={() => navigate('/cv-analysis')}
+              >
+                <FileText className="h-6 w-6 text-blue-600" />
+                <div className="text-center">
+                  <div className="font-semibold">Analyser CV</div>
+                  <div className="text-xs text-muted-foreground">PDF → Texte + Structure</div>
+                </div>
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col space-y-2"
+                onClick={() => navigate('/research')}
+              >
+                <Globe className="h-6 w-6 text-green-600" />
+                <div className="text-center">
+                  <div className="font-semibold">Research</div>
+                  <div className="text-xs text-muted-foreground">Offre → Entretien</div>
+                </div>
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col space-y-2"
+                onClick={() => navigate('/interview')}
+              >
+                <Video className="h-6 w-6 text-purple-600" />
+                <div className="text-center">
+                  <div className="font-semibold">Entretien</div>
+                  <div className="text-xs text-muted-foreground">Simulation Live</div>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Charts and Recent Sessions */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

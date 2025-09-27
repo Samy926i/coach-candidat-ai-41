@@ -71,5 +71,5 @@ verify_jwt = false
 [functions.skill-analyzer]
 verify_jwt = false
 
-[functions.research]
+[functions.pdf-processor]
 verify_jwt = false

@@ -1,4 +1,6 @@
 import { CVUploadAnalyzer } from '@/components/analysis/CVUploadAnalyzer';
+import { PDFProcessor } from '@/components/cv/PDFProcessor';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Brain } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -36,16 +38,28 @@ export default function CVAnalysis() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-4">
-              Analyseur Intelligent CV-Offre d'Emploi
+              Analyseur Intelligent CV & PDF
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Uploadez votre CV et fournissez un lien vers une offre d'emploi pour obtenir une analyse 
-              détaillée des compétences et des questions d'entretien personnalisées basées sur vos forces 
-              et lacunes identifiées.
+              Traitez vos CVs PDF (texte ou scanné) ou analysez-les face à des offres d'emploi 
+              pour générer des questions d'entretien personnalisées.
             </p>
           </div>
 
-          <CVUploadAnalyzer />
+          <Tabs defaultValue="processor" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="processor">Traitement PDF</TabsTrigger>
+              <TabsTrigger value="analyzer">Analyse CV-JD</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="processor" className="mt-6">
+              <PDFProcessor />
+            </TabsContent>
+            
+            <TabsContent value="analyzer" className="mt-6">
+              <CVUploadAnalyzer />
+            </TabsContent>
+          </Tabs>
         </div>
       </main>
     </div>
