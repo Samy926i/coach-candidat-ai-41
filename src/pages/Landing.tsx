@@ -91,8 +91,9 @@ export default function Landing() {
                 variant="outline" 
                 size="lg"
                 className="text-lg px-8 py-3"
+                onClick={() => navigate('/cv-import')}
               >
-                Voir comment ça marche
+                Importer mon CV
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </div>

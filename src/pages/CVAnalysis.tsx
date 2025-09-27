@@ -39,9 +39,21 @@ export default function CVAnalysis() {
               Analyse CV & Offre d'Emploi
             </h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Analysez votre CV face à des offres d'emploi pour générer des questions d'entretien personnalisées.
-              Pour importer un nouveau CV, <a href="/cv-import" className="text-primary underline">utilisez l'import unifié</a>.
+              Analysez le contenu de votre CV face à des offres d'emploi pour générer des questions d'entretien personnalisées.
             </p>
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <p className="text-sm">
+                💡 <strong>Nouveau CV ?</strong> Utilisez d'abord l'
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-primary"
+                  onClick={() => navigate('/cv-import')}
+                >
+                  import unifié
+                </Button>
+                {" "}pour traiter vos fichiers PDF, DOCX ou TXT.
+              </p>
+            </div>
           </div>
 
           <CVUploadAnalyzer />

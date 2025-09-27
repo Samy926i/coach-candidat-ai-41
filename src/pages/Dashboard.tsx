@@ -208,36 +208,36 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/cv-analysis')}
+                onClick={() => navigate('/cv-import')}
               >
                 <FileText className="h-6 w-6 text-blue-600" />
                 <div className="text-center">
-                  <div className="font-semibold">Analyser CV</div>
-                  <div className="text-xs text-muted-foreground">PDF → Texte + Structure</div>
+                  <div className="font-semibold">Importer CV</div>
+                  <div className="text-xs text-muted-foreground">PDF/DOCX/TXT → Structure</div>
                 </div>
               </Button>
               
-              <Button
+               <Button
+                variant="outline"
+                className="h-24 flex flex-col space-y-2"
+                onClick={() => navigate('/cv-analysis')}
+              >
+                <Globe className="h-6 w-6 text-green-600" />
+                <div className="text-center">
+                  <div className="font-semibold">Analyser CV-JD</div>
+                  <div className="text-xs text-muted-foreground">CV + Offre → Questions</div>
+                </div>
+              </Button>
+              
+               <Button
                 variant="outline"
                 className="h-24 flex flex-col space-y-2"
                 onClick={() => navigate('/research')}
               >
-                <Globe className="h-6 w-6 text-green-600" />
+                <Video className="h-6 w-6 text-purple-600" />
                 <div className="text-center">
                   <div className="font-semibold">Research</div>
                   <div className="text-xs text-muted-foreground">Offre → Entretien</div>
-                </div>
-              </Button>
-              
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/interview')}
-              >
-                <Video className="h-6 w-6 text-purple-600" />
-                <div className="text-center">
-                  <div className="font-semibold">Entretien</div>
-                  <div className="text-xs text-muted-foreground">Simulation Live</div>
                 </div>
               </Button>
             </div>

@@ -29,25 +29,13 @@ export function CVUploadAnalyzer() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [currentStep, setCurrentStep] = useState<string>('');
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      let content = e.target?.result as string;
-      // Apply Unicode normalization (NFC) for consistency
-      if (content && typeof content.normalize === 'function') {
-        content = content.normalize('NFC');
-      }
-      setCvContent(content);
-      toast({
-        title: "CV uploadé",
-        description: "Contenu du CV chargé avec succès"
-      });
-    };
-    // Explicitly read as UTF-8 text
-    reader.readAsText(file, 'UTF-8');
+  const handleFileUpload = () => {
+    // Redirect to unified CV import
+    window.open('/cv-import', '_blank');
+    toast({
+      title: "Import de CV",
+      description: "Utilisez l'import unifié pour charger votre CV"
+    });
   };
 
   const runCompleteAnalysis = async () => {
@@ -184,21 +172,26 @@ export function CVUploadAnalyzer() {
         </CardHeader>
         
         <CardContent className="space-y-6">
-          {/* CV Upload */}
+          {/* CV Content */}
           <div className="space-y-2">
-            <Label htmlFor="cv-upload">CV (Texte ou PDF)</Label>
-            <div className="flex items-center space-x-4">
-              <Input
-                id="cv-upload"
-                type="file"
-                accept=".txt,.pdf"
-                onChange={handleFileUpload}
-                className="flex-1"
-              />
-              <Upload className="h-4 w-4 text-muted-foreground" />
+            <Label htmlFor="cv-content">Contenu du CV</Label>
+            <div className="flex items-center space-x-2 mb-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleFileUpload}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Importer un CV
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                ou collez le contenu ci-dessous
+              </span>
             </div>
             <Textarea
-              placeholder="Ou collez le contenu de votre CV ici..."
+              id="cv-content"
+              placeholder="Collez le contenu de votre CV ici, ou utilisez le bouton 'Importer un CV' pour charger un fichier..."
               value={cvContent}
               onChange={(e) => {
                 let content = e.target.value;
@@ -208,7 +201,7 @@ export function CVUploadAnalyzer() {
                 }
                 setCvContent(content);
               }}
-              rows={4}
+              rows={6}
               className="mt-2"
             />
           </div>
