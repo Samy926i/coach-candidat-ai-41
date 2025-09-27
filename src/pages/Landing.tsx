@@ -194,26 +194,6 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-primary/5">
-        <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Prêt à transformer vos entretiens ?
-          </h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Rejoignez des milliers de candidats qui ont déjà amélioré leurs performances 
-            grâce à Coach Candidat IA.
-          </p>
-          <Button 
-            size="lg" 
-            onClick={() => navigate('/auth')}
-            className="bg-primary hover:bg-primary/90 text-lg px-12 py-4"
-          >
-            <Play className="mr-2 h-6 w-6" />
-            Démarrer ma préparation
-          </Button>
-        </div>
-      </section>
 
       {/* Footer */}
       <footer className="py-8 px-4 border-t bg-muted/20">
