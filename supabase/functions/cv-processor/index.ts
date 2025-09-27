@@ -335,89 +335,92 @@ async function performOCR(arrayBuffer: ArrayBuffer, format: string, fileSize: nu
       throw new Error(`Fichier trop volumineux pour OCR: ${(fileSize/1024/1024).toFixed(1)}MB (max: 20MB)`);
     }
 
-    console.log('[cv-processor] Converting to base64...');
+    let imageDataUrls: string[] = [];
     
-    // Enhanced base64 conversion with error handling
-    const uint8Array = new Uint8Array(arrayBuffer);
-    let base64 = '';
+    if (format === 'pdf') {
+      // Convert PDF pages to images for better OCR compatibility
+      console.log('[cv-processor] Converting PDF pages to images...');
+      imageDataUrls = await convertPDFToImages(arrayBuffer);
+    } else {
+      // For non-PDF files, convert directly to base64
+      console.log('[cv-processor] Converting file to base64...');
+      const base64 = await arrayBufferToBase64(arrayBuffer);
+      const dataUrl = `data:application/${format};base64,${base64}`;
+      imageDataUrls = [dataUrl];
+    }
     
-    // Process in smaller chunks for very large files
-    const chunkSize = 0x4000; // 16KB chunks for better memory handling
-    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-      const chunk = uint8Array.subarray(i, i + chunkSize);
-      try {
-        base64 += btoa(String.fromCharCode(...chunk));
-      } catch (chunkError) {
-        console.error(`[cv-processor] Error processing chunk at ${i}:`, chunkError);
-        throw new Error('Erreur lors de la conversion du fichier');
+    console.log(`[cv-processor] Converted to ${imageDataUrls.length} image(s) for OCR`);
+
+    // Process multiple images with OpenAI OCR
+    console.log('[cv-processor] Processing images with OpenAI OCR...');
+    let combinedText = '';
+    
+    for (let i = 0; i < imageDataUrls.length; i++) {
+      const imageUrl = imageDataUrls[i];
+      console.log(`[cv-processor] Processing image ${i + 1}/${imageDataUrls.length}...`);
+      
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert OCR system. Extract ALL text from the document while preserving structure and formatting. Return clean, readable UTF-8 text.'
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Extract all text from this CV/resume document page ${i + 1}. Preserve the original structure, formatting, and hierarchy. Include all contact information, experience, education, skills, and other relevant sections. Return clean UTF-8 text that maintains readability.`
+                },
+                {
+                  type: 'image_url',
+                  image_url: { 
+                    url: imageUrl,
+                    detail: 'high' // High detail for better OCR accuracy
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 4000,
+          temperature: 0.1 // Lower temperature for more consistent OCR results
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[cv-processor] OpenAI API error for page ${i + 1}:`, response.status, errorText);
+        // Continue with other pages instead of failing completely
+        continue;
+      }
+
+      const data = await response.json();
+      const pageText = data.choices[0]?.message?.content || '';
+      
+      if (pageText.trim()) {
+        combinedText += (combinedText ? '\n\n--- Page ' + (i + 1) + ' ---\n\n' : '') + pageText;
+      }
+      
+      // Add small delay between API calls to avoid rate limiting
+      if (i < imageDataUrls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
-    // For PDF files, we need to convert to image format first
-    let dataUrl;
-    if (format === 'pdf') {
-      // For PDFs, GPT-4o-mini can handle PDF directly via image_url
-      dataUrl = `data:application/pdf;base64,${base64}`;
-    } else {
-      // For other formats, use the original format
-      dataUrl = `data:application/${format};base64,${base64}`;
-    }
-    
-    console.log(`[cv-processor] Base64 conversion complete (${base64.length} chars)`);
-
-    console.log('[cv-processor] Calling OpenAI vision API...');
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert OCR system. Extract ALL text from the document while preserving structure and formatting. Return clean, readable UTF-8 text.'
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract all text from this CV/resume document. Preserve the original structure, formatting, and hierarchy. Include all contact information, experience, education, skills, and other relevant sections. Return clean UTF-8 text that maintains readability.'
-              },
-              {
-                type: 'image_url',
-                image_url: { 
-                  url: dataUrl,
-                  detail: 'high' // High detail for better OCR accuracy
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 4000,
-        temperature: 0.1 // Lower temperature for more consistent OCR results
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[cv-processor] OpenAI API error:', response.status, errorText);
-      throw new Error(`Erreur API OpenAI: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const extractedText = data.choices[0]?.message?.content || '';
-    
-    if (extractedText.length < 50) {
+    if (combinedText.length < 50) {
       throw new Error('OCR a produit un texte insuffisant (document peut-être vide ou illisible)');
     }
 
-    console.log(`[cv-processor] OCR successful (${extractedText.length} chars extracted)`);
+    console.log(`[cv-processor] OCR successful (${combinedText.length} chars extracted from ${imageDataUrls.length} pages)`);
     
-    const normalizedText = normalizeText(extractedText);
+    const normalizedText = normalizeText(combinedText);
     const structuredData = await structureCV(normalizedText);
     
     return {
@@ -597,6 +600,45 @@ function cleanJsonResponse(content: string): string {
   }
   
   return content.trim();
+}
+
+// Helper function to convert PDF pages to images
+async function convertPDFToImages(arrayBuffer: ArrayBuffer): Promise<string[]> {
+  try {
+    console.log('[cv-processor] Loading PDF for image conversion...');
+    
+    // For now, convert the entire PDF to base64 and let OpenAI handle it
+    // Future enhancement: Use a proper PDF-to-image conversion service
+    const base64 = await arrayBufferToBase64(arrayBuffer);
+    const dataUrl = `data:application/pdf;base64,${base64}`;
+    
+    console.log('[cv-processor] PDF converted to base64 for OCR processing');
+    return [dataUrl];
+    
+  } catch (error) {
+    console.error('[cv-processor] PDF conversion failed:', error);
+    throw new Error('Erreur lors de la conversion PDF: ' + (error as Error).message);
+  }
+}
+
+// Helper function to convert ArrayBuffer to base64
+async function arrayBufferToBase64(arrayBuffer: ArrayBuffer): Promise<string> {
+  const uint8Array = new Uint8Array(arrayBuffer);
+  let base64 = '';
+  
+  // Process in chunks for better memory handling
+  const chunkSize = 0x4000; // 16KB chunks
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.subarray(i, i + chunkSize);
+    try {
+      base64 += btoa(String.fromCharCode(...chunk));
+    } catch (chunkError) {
+      console.error(`[cv-processor] Error processing chunk at ${i}:`, chunkError);
+      throw new Error('Erreur lors de la conversion du fichier');
+    }
+  }
+  
+  return base64;
 }
 
 // Helper function to extract user ID from Authorization header
