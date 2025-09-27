@@ -15,17 +15,27 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Get user ID from Authorization header
-function getUserFromAuth(req: Request): string | null {
+// Get user ID from Supabase auth
+async function getUserFromAuth(req: Request): Promise<string | null> {
   const authHeader = req.headers.get('authorization');
-  if (!authHeader) return null;
+  if (!authHeader) {
+    console.error('[cv-processor] No authorization header');
+    return null;
+  }
 
   try {
-    const token = authHeader.replace('Bearer ', '');
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.sub;
+    // Use Supabase client to get user from JWT
+    const { data: { user }, error } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    
+    if (error || !user) {
+      console.error('[cv-processor] Error getting user from Supabase:', error);
+      return null;
+    }
+    
+    console.log('[cv-processor] User authenticated:', user.id);
+    return user.id;
   } catch (error) {
-    console.error('[cv-processor] Error extracting user from token:', error);
+    console.error('[cv-processor] Error in getUserFromAuth:', error);
     return null;
   }
 }
@@ -53,7 +63,7 @@ serve(async (req) => {
     console.log(`[cv-processor] Request method: ${req.method}, Content-Type: ${req.headers.get('content-type')}`);
     
     // Get user ID from token
-    const userId = getUserFromAuth(req);
+    const userId = await getUserFromAuth(req);
     if (!userId) {
       return new Response(
         JSON.stringify({ error: 'Non autorisé - token manquant ou invalide' }),
