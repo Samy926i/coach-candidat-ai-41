@@ -104,7 +104,8 @@ export default function Step1() {
           <Button
             onClick={handleNext}
             disabled={isLoading}
-            className="transition-all duration-200"
+            variant={canProceed ? "default" : "outline"}
+            className={`transition-all duration-200 ${!canProceed ? 'text-muted-foreground border-muted' : ''}`}
           >
             {!canProceed ? 'Skip' : 'Next'}
             <ArrowRight className="ml-2 h-4 w-4" />
