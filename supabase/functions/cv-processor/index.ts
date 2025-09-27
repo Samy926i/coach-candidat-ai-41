@@ -162,8 +162,17 @@ async function performOCR(arrayBuffer: ArrayBuffer, format: string) {
   }
 
   try {
-    // Convert to base64 for OpenAI
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    // Convert to base64 for OpenAI (handling large files safely)
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let base64 = '';
+    
+    // Process in chunks to avoid stack overflow for large files
+    const chunkSize = 0x8000; // 32KB chunks
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      base64 += btoa(String.fromCharCode(...chunk));
+    }
+    
     const dataUrl = `data:application/${format};base64,${base64}`;
 
     console.log('[cv-processor] Calling OpenAI OCR...');
