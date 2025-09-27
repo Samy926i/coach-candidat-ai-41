@@ -39,8 +39,8 @@ export default function Step2() {
   const analyzeJobOffer = async () => {
     if (!jobUrl.trim()) {
       toast({
-        title: "URL manquante",
-        description: "Veuillez saisir l'URL de l'offre d'emploi",
+        title: "Missing URL",
+        description: "Please enter the job offer URL",
         variant: "destructive"
       });
       return;
@@ -48,34 +48,34 @@ export default function Step2() {
 
     if (!validateUrl(jobUrl)) {
       toast({
-        title: "URL invalide",
-        description: "Veuillez saisir une URL valide (http/https)",
+        title: "Invalid URL",
+        description: "Please enter a valid URL (http/https)",
         variant: "destructive"
       });
       return;
     }
 
     setIsAnalyzing(true);
-    setCurrentStep('Analyse de l\'offre en cours...');
+    setCurrentStep('Analyzing offer...');
 
     try {
-      setCurrentStep('Extraction des informations...');
+      setCurrentStep('Extracting information...');
       const response = await supabase.functions.invoke('research', {
         body: { url: jobUrl }
       });
 
       if (response.error) {
-        throw new Error(response.error.message || 'Erreur lors de l\'analyse');
+        throw new Error(response.error.message || 'Analysis error');
       }
 
       const result = response.data as ResearchResponse;
       
-      setCurrentStep('Analyse terminée');
+      setCurrentStep('Analysis complete');
       setAnalysisComplete(true);
       
       toast({
-        title: "Analyse réussie !",
-        description: `L'offre pour ${result.job.role_title} chez ${result.job.company_name} a été analysée avec succès.`
+        title: "Analysis successful!",
+        description: `The offer for ${result.job.role_title} at ${result.job.company_name} has been successfully analyzed.`
       });
 
       // Store the analysis result for later use
@@ -88,18 +88,18 @@ export default function Step2() {
 
     } catch (error: any) {
       console.error('Analysis error:', error);
-      let errorMessage = "Une erreur s'est produite lors de l'analyse";
+      let errorMessage = "An error occurred during analysis";
       
       if (error.message.includes('timeout')) {
-        errorMessage = "Délai d'attente dépassé - veuillez réessayer";
+        errorMessage = "Timeout exceeded - please try again";
       } else if (error.message.includes('Invalid URL')) {
-        errorMessage = "URL invalide ou inaccessible";
+        errorMessage = "Invalid or inaccessible URL";
       } else if (error.message.includes('scraper')) {
-        errorMessage = "Impossible d'accéder à la page - vérifiez l'URL";
+        errorMessage = "Unable to access the page - check the URL";
       }
       
       toast({
-        title: "Erreur d'analyse",
+        title: "Analysis error",
         description: errorMessage,
         variant: "destructive"
       });
@@ -124,35 +124,35 @@ export default function Step2() {
       <div className="w-full max-w-2xl mx-auto space-y-8">
         {/* Progress indicator */}
         <div className="text-center space-y-2">
-          <h1 className="coaching-heading">Étape 2 sur 2</h1>
-          <p className="coaching-body">Analysons l'offre d'emploi pour laquelle vous souhaitez vous préparer</p>
+          <h1 className="coaching-heading">Step 2 of 2</h1>
+          <p className="coaching-body">Let's analyze the job offer you want to prepare for</p>
         </div>
 
         <Card className="shadow-coaching">
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center space-x-2">
               <Globe className="h-6 w-6 text-primary" />
-              <span>Analyse de l'Offre d'Emploi</span>
+              <span>Job Offer Analysis</span>
             </CardTitle>
             <CardDescription>
-              Saisissez l'URL de l'offre d'emploi pour que notre IA puisse analyser les compétences requises et préparer votre entretien
+              Enter the URL of the job offer so our AI can analyze the required skills and prepare your interview
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-6">
             <div className="space-y-3">
-              <Label htmlFor="job-url" className="text-base font-medium">URL de l'Offre d'Emploi</Label>
+              <Label htmlFor="job-url" className="text-base font-medium">Job Offer URL</Label>
               <Input
                 id="job-url"
                 type="url"
-                placeholder="https://www.linkedin.com/jobs/view/... ou autre site d'emploi"
+                placeholder="https://www.linkedin.com/jobs/view/... or other job site"
                 value={jobUrl}
                 onChange={handleUrlChange}
                 className="text-base h-12"
                 disabled={isAnalyzing}
               />
               <p className="text-sm text-muted-foreground">
-                Fonctionne avec LinkedIn, Indeed, Welcome to the Jungle, et la plupart des sites d'emploi
+                Works with LinkedIn, Indeed, Welcome to the Jungle, and most job sites
               </p>
             </div>
 
@@ -176,7 +176,7 @@ export default function Step2() {
                 disabled={isAnalyzing}
                 className="flex-1"
               >
-                Retour
+                Back
               </Button>
               
               <Button
@@ -188,16 +188,16 @@ export default function Step2() {
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Analyse en cours...
+                    Analyzing...
                   </>
                 ) : analysisComplete ? (
                   <>
-                    Terminer le didacticiel
+                    Complete tutorial
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </>
                 ) : (
                   <>
-                    Analyser l'offre
+                    Analyze offer
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </>
                 )}
@@ -208,7 +208,7 @@ export default function Step2() {
 
         {/* Helper text */}
         <div className="text-center text-sm text-muted-foreground">
-          <p>Une fois l'analyse terminée, vous pourrez commencer à vous préparer pour votre entretien</p>
+          <p>Once the analysis is complete, you can start preparing for your interview</p>
         </div>
       </div>
     </div>

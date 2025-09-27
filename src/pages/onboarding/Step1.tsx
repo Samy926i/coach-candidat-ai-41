@@ -54,19 +54,19 @@ export default function Step1() {
             <Sparkles className="h-8 w-8 text-primary animate-pulse" />
           </div>
           <h1 className="text-2xl font-semibold text-foreground">
-            Configurons votre profil
+            Set up your profile
           </h1>
           <p className="text-muted-foreground">
-            Connectez LinkedIn ou importez votre CV pour commencer
+            Connect LinkedIn or upload your CV to get started
           </p>
         </div>
 
         {/* LinkedIn Connection */}
         <Card className="p-6 space-y-4 transition-all duration-200 hover:shadow-md">
           <div className="space-y-2">
-            <h3 className="font-medium">Connexion LinkedIn</h3>
+            <h3 className="font-medium">LinkedIn Connection</h3>
             <p className="text-sm text-muted-foreground">
-              Importez automatiquement votre profil professionnel
+              Automatically import your professional profile
             </p>
           </div>
           <LinkedInButton 
@@ -83,9 +83,9 @@ export default function Step1() {
         {/* CV Upload */}
         <Card className="p-6 space-y-4 transition-all duration-200 hover:shadow-md">
           <div className="space-y-2">
-            <h3 className="font-medium">Import CV</h3>
+            <h3 className="font-medium">Upload CV</h3>
             <p className="text-sm text-muted-foreground">
-              Glissez-déposez votre CV au format PDF
+              Drag and drop your CV in PDF format
             </p>
           </div>
           <ResumeDropzone 
@@ -106,7 +106,7 @@ export default function Step1() {
             disabled={isLoading}
             className="transition-all duration-200"
           >
-            {!canProceed ? 'Passer' : 'Suivant'}
+            {!canProceed ? 'Skip' : 'Next'}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
