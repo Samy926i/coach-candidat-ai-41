@@ -65,27 +65,31 @@ export function CVImport() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Support PDF, DOCX, TXT
-    const supportedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'text/plain'
-    ];
+    // Enhanced file type support - handle various MIME types and extensions
+    const fileName = file.name.toLowerCase();
+    const fileType = file.type.toLowerCase();
+    
+    const isPDF = fileType.includes('pdf') || fileType === 'application/x-pdf' || 
+                  (fileType === 'application/octet-stream' && fileName.endsWith('.pdf'));
+    const isWord = fileType.includes('wordprocessingml') || fileType.includes('msword') ||
+                   (fileType === 'application/octet-stream' && (fileName.endsWith('.docx') || fileName.endsWith('.doc')));
+    const isText = fileType.includes('text/plain') ||
+                   (fileType === 'application/octet-stream' && fileName.endsWith('.txt'));
 
-    if (!supportedTypes.includes(file.type)) {
+    if (!isPDF && !isWord && !isText) {
       toast({
         title: "Format non supporté",
-        description: "Veuillez sélectionner un fichier PDF, DOCX ou TXT",
+        description: `Format détecté: ${file.type}. Veuillez sélectionner un fichier PDF, DOCX ou TXT`,
         variant: "destructive"
       });
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+    // Increased size limit to 20MB to match OpenAI limits
+    if (file.size > 20 * 1024 * 1024) {
       toast({
         title: "Fichier trop volumineux",
-        description: "La taille maximale autorisée est de 10MB",
+        description: `Taille: ${(file.size/1024/1024).toFixed(1)}MB. La taille maximale autorisée est de 20MB`,
         variant: "destructive"
       });
       return;
@@ -93,6 +97,12 @@ export function CVImport() {
 
     setSelectedFile(file);
     setResult(null);
+    
+    // Show file accepted feedback
+    toast({
+      title: "Fichier sélectionné",
+      description: `${file.name} (${(file.size/1024/1024).toFixed(1)}MB) prêt pour traitement`,
+    });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -122,20 +132,35 @@ export function CVImport() {
     if (!selectedFile) return;
 
     setIsProcessing(true);
-    setCurrentStep('Analyse du document...');
+    setCurrentStep('Initialisation...');
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      setCurrentStep('Traitement en cours...');
+      // Show processing steps based on file type
+      const fileType = selectedFile.type.toLowerCase();
+      if (fileType.includes('pdf')) {
+        setCurrentStep('Analyse PDF en cours...');
+      } else if (fileType.includes('word') || fileType.includes('docx')) {
+        setCurrentStep('Extraction DOCX...');
+      } else {
+        setCurrentStep('Lecture du fichier texte...');
+      }
+      
+      console.log(`Processing ${selectedFile.name} (${selectedFile.type})`);
       
       const response = await supabase.functions.invoke('cv-processor', {
         body: formData
       });
 
       if (response.error) {
+        console.error('CV processor error:', response.error);
         throw new Error(response.error.message || 'Erreur lors du traitement');
+      }
+
+      if (!response.data) {
+        throw new Error('Aucune donnée reçue du serveur');
       }
 
       const processedData = response.data as ProcessedCV;
@@ -149,23 +174,43 @@ export function CVImport() {
         'txt_direct': 'Lecture directe'
       };
 
+      const confidence = Math.round(processedData.confidence_score * 100);
+      const method = methodNames[processedData.processing_method];
+
       toast({
         title: "CV traité avec succès",
-        description: `Méthode: ${methodNames[processedData.processing_method]} (${Math.round(processedData.confidence_score * 100)}% de confiance)`
+        description: `${method} • ${confidence}% de confiance • ${processedData.raw_text.length} caractères extraits`,
       });
 
     } catch (error: any) {
       console.error('CV processing error:', error);
       
-      let errorMessage = "Erreur lors du traitement du CV";
-      if (error.message.includes('OCR')) {
-        errorMessage = "Erreur OCR - le document pourrait être corrompu";
-      } else if (error.message.includes('format')) {
-        errorMessage = "Format de fichier non reconnu";
+      let errorTitle = "Erreur de traitement";
+      let errorMessage = "Une erreur inattendue s'est produite";
+      
+      const errorText = error.message || "";
+      
+      if (errorText.includes('OCR')) {
+        errorTitle = "Erreur OCR";
+        errorMessage = "Le document pourrait être corrompu, scanné de mauvaise qualité, ou contenir uniquement des images";
+      } else if (errorText.includes('format') || errorText.includes('Format')) {
+        errorTitle = "Format non supporté";
+        errorMessage = errorText;
+      } else if (errorText.includes('API') || errorText.includes('service')) {
+        errorTitle = "Service temporairement indisponible";
+        errorMessage = "Veuillez réessayer dans quelques instants";
+      } else if (errorText.includes('size') || errorText.includes('volumineux')) {
+        errorTitle = "Fichier trop volumineux";
+        errorMessage = errorText;
+      } else if (errorText.includes('Clé API') || errorText.includes('non configurée')) {
+        errorTitle = "Configuration manquante";
+        errorMessage = "Le service de traitement n'est pas configuré";
+      } else if (errorText) {
+        errorMessage = errorText;
       }
       
       toast({
-        title: "Erreur de traitement",
+        title: errorTitle,
         description: errorMessage,
         variant: "destructive"
       });
@@ -321,10 +366,10 @@ export function CVImport() {
               <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-lg font-medium">Glissez-déposez ou cliquez pour sélectionner votre CV</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Formats supportés: PDF, DOCX, TXT (max 10MB)
+                Formats supportés: PDF, DOCX, TXT (max 20MB)
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Détection automatique: texte ou scanné
+                ✓ Détection automatique de format • ✓ OCR intelligent • ✓ Extraction structurée
               </p>
             </label>
           </div>
@@ -336,11 +381,13 @@ export function CVImport() {
                 <div>
                   <p className="font-medium flex items-center space-x-2">
                     <span>{selectedFile.name}</span>
-                    {getFormatBadge(selectedFile.type.includes('pdf') ? 'pdf' : 
-                                   selectedFile.type.includes('word') ? 'docx' : 'txt')}
+                    {getFormatBadge(
+                      selectedFile.type.includes('pdf') || selectedFile.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 
+                      selectedFile.type.includes('word') || selectedFile.name.toLowerCase().endsWith('.docx') || selectedFile.name.toLowerCase().endsWith('.doc') ? 'docx' : 'txt'
+                    )}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • Type: {selectedFile.type || 'application/octet-stream'}
                   </p>
                 </div>
               </div>
