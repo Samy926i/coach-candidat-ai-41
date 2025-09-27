@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          muted: "hsl(var(--primary-muted))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -38,6 +39,15 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
+          muted: "hsl(var(--accent-muted))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -56,6 +66,16 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        // Coaching-specific colors
+        coaching: {
+          video: "hsl(var(--coaching-video))",
+          transcript: "hsl(var(--coaching-transcript))",
+          feedback: "hsl(var(--coaching-feedback))",
+          "score-excellent": "hsl(var(--coaching-score-excellent))",
+          "score-good": "hsl(var(--coaching-score-good))",
+          "score-average": "hsl(var(--coaching-score-average))",
+          "score-poor": "hsl(var(--coaching-score-poor))",
         },
       },
       borderRadius: {
