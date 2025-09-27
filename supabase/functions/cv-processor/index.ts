@@ -906,8 +906,13 @@ async function storeWithEmbeddings(
     // Get user ID if authenticated
     const userId = await getUserFromAuth(authHeader);
     
+    if (!userId) {
+      throw new Error('Authentication required - user must be logged in to upload CV');
+    }
+    
     // Store in database with embeddings
     const insertData: any = {
+      user_id: userId, // Always require user ID
       filename: fileInfo.fileName,
       file_size: fileInfo.fileSize,
       mime_type: fileInfo.fileType,
@@ -919,10 +924,6 @@ async function storeWithEmbeddings(
       file_format: result.file_format,
       embedding: embedding ? `[${embedding.join(',')}]` : null // Convert to PostgreSQL array format
     };
-
-    if (userId) {
-      insertData.user_id = userId;
-    }
 
     const { data, error } = await supabase
       .from('cv_uploads')

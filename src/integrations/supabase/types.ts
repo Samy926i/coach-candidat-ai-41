@@ -80,51 +80,6 @@ export type Database = {
           },
         ]
       }
-      cv_documents: {
-        Row: {
-          created_at: string
-          extracted_education: string[] | null
-          extracted_experience: string[] | null
-          extracted_skills: string[] | null
-          file_size: number | null
-          file_url: string
-          filename: string
-          id: string
-          mime_type: string | null
-          parsed_content: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          extracted_education?: string[] | null
-          extracted_experience?: string[] | null
-          extracted_skills?: string[] | null
-          file_size?: number | null
-          file_url: string
-          filename: string
-          id?: string
-          mime_type?: string | null
-          parsed_content?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          extracted_education?: string[] | null
-          extracted_experience?: string[] | null
-          extracted_skills?: string[] | null
-          file_size?: number | null
-          file_url?: string
-          filename?: string
-          id?: string
-          mime_type?: string | null
-          parsed_content?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       cv_uploads: {
         Row: {
           confidence_score: number | null
@@ -134,6 +89,8 @@ export type Database = {
           file_size: number | null
           filename: string | null
           id: string
+          is_active: boolean | null
+          is_default: boolean | null
           mime_type: string | null
           processing_method: string
           raw_text: string
@@ -150,6 +107,8 @@ export type Database = {
           file_size?: number | null
           filename?: string | null
           id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
           mime_type?: string | null
           processing_method: string
           raw_text: string
@@ -166,6 +125,8 @@ export type Database = {
           file_size?: number | null
           filename?: string | null
           id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
           mime_type?: string | null
           processing_method?: string
           raw_text?: string

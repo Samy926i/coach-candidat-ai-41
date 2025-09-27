@@ -18,17 +18,21 @@ import {
   Clock,
   Brain,
   FileText,
-  Globe
+  Globe,
+  Archive,
+  Star
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { mockKPIData, mockChartData, mockSessions } from "@/lib/mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { useCVs } from "@/hooks/useCVs";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [showAccountLinking, setShowAccountLinking] = useState(false);
+  const { getTotalCVs, getDefaultCV } = useCVs();
   
   useEffect(() => {
     // Get initial session
@@ -358,6 +362,35 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">
                 Analysez votre CV face à une offre et générez des questions ciblées
               </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate('/my-cvs')}>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Archive className="h-5 w-5 text-primary" />
+                  <span>Mes CV</span>
+                </div>
+                {getTotalCVs() > 0 && (
+                  <Badge variant="secondary">{getTotalCVs()}</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {getTotalCVs() === 0 
+                  ? "Aucun CV importé" 
+                  : `${getTotalCVs()} CV${getTotalCVs() > 1 ? 's' : ''} dans votre bibliothèque`
+                }
+              </p>
+              {getDefaultCV() && (
+                <div className="mt-2 flex items-center text-xs text-muted-foreground">
+                  <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                  CV principal: {getDefaultCV()?.filename || 'CV directement saisi'}
+                </div>
+              )}
             </CardContent>
           </Card>
 

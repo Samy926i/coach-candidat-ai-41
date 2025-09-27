@@ -95,11 +95,12 @@ export function useProfileAggregation(user: User | null) {
         throw profileError;
       }
 
-      // Fetch latest CV data
+      // Fetch latest CV data from cv_uploads
       const { data: cvDocuments, error: cvError } = await supabase
-        .from('cv_documents')
-        .select('parsed_content, extracted_skills, extracted_experience, extracted_education')
+        .from('cv_uploads')
+        .select('raw_text, structured_data')
         .eq('user_id', user.id)
+        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -126,11 +127,11 @@ export function useProfileAggregation(user: User | null) {
       } : null;
 
       const cvData: CVData | null = cvDocuments?.[0] ? {
-        skills: Array.isArray(cvDocuments[0].extracted_skills) 
-          ? cvDocuments[0].extracted_skills 
+        skills: Array.isArray((cvDocuments[0].structured_data as any)?.skills) 
+          ? (cvDocuments[0].structured_data as any).skills 
           : [],
-        experiences: Array.isArray(cvDocuments[0].extracted_experience) 
-          ? cvDocuments[0].extracted_experience.map((exp: any) => ({
+        experiences: Array.isArray((cvDocuments[0].structured_data as any)?.experience) 
+          ? (cvDocuments[0].structured_data as any).experience.map((exp: any) => ({
               title: exp.title || '',
               company: exp.company || '',
               duration: exp.duration || '',
@@ -138,16 +139,16 @@ export function useProfileAggregation(user: User | null) {
               technologies: Array.isArray(exp.technologies) ? exp.technologies : undefined
             }))
           : [],
-        education: Array.isArray(cvDocuments[0].extracted_education) 
-          ? cvDocuments[0].extracted_education.map((edu: any) => ({
+        education: Array.isArray((cvDocuments[0].structured_data as any)?.education) 
+          ? (cvDocuments[0].structured_data as any).education.map((edu: any) => ({
               degree: edu.degree || '',
               institution: edu.institution || '',
               year: edu.year || '',
               field: edu.field || undefined
             }))
           : [],
-        certifications: [],
-        languages: []
+        certifications: (cvDocuments[0].structured_data as any)?.certifications || [],
+        languages: (cvDocuments[0].structured_data as any)?.languages || []
       } : null;
 
       // Aggregate skills from all sources
