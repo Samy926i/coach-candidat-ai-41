@@ -14,7 +14,8 @@ import {
   Plus, 
   BarChart3,
   Users,
-  Clock
+  Clock,
+  Brain
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { mockKPIData, mockChartData, mockSessions } from "@/lib/mock-data";
@@ -273,7 +274,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="hover:shadow-lg transition-shadow cursor-pointer" 
                 onClick={() => navigate('/job-context')}>
             <CardHeader>
@@ -300,6 +301,21 @@ export default function Dashboard() {
             <CardContent>
               <p className="text-sm text-muted-foreground">
                 Téléchargez votre CV pour des questions personnalisées
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate('/cv-analysis')}>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <span>Analyse CV-JD</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Analysez votre CV face à une offre et générez des questions ciblées
               </p>
             </CardContent>
           </Card>

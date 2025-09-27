@@ -10,6 +10,7 @@ import JobContext from "./pages/JobContext";
 import Interview from "./pages/Interview";
 import SessionDetail from "./pages/SessionDetail";
 import CVUpload from "./pages/CVUpload";
+import CVAnalysis from "./pages/CVAnalysis";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/interview" element={<Interview />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
           <Route path="/cv" element={<CVUpload />} />
+          <Route path="/cv-analysis" element={<CVAnalysis />} />
           <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
