@@ -29,7 +29,7 @@ async function ensurePgVectorSetup() {
 }
 
 // Disable PDF.js worker for Deno Edge Functions - use workerless mode
-pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+// Worker configuré automatiquement
 
 serve(async (req) => {
   // Enhanced CORS handling
@@ -203,65 +203,71 @@ function isTextFile(mimeType: string, fileName: string): boolean {
 }
 
 async function processPDF(file: File) {
-  console.log('[cv-processor] Attempting PDF text extraction...');
+  console.log('[cv-processor] Processing PDF with simple text extraction...');
   
   const arrayBuffer = await file.arrayBuffer();
   
   try {
-    // Try direct text extraction first with better error handling
-    console.log('[cv-processor] Loading PDF document...');
-    const loadingTask = pdfjsLib.getDocument({ 
-      data: arrayBuffer,
-      verbosity: 0 // Reduce PDF.js logging
-    });
+    // Extraction de texte basique et robuste
+    const bytes = new Uint8Array(arrayBuffer);
+    const decoder = new TextDecoder('utf-8', { fatal: false });
     
-    const pdf = await loadingTask.promise;
-    let textContent = '';
-    const maxPages = Math.min(pdf.numPages, 20); // Limit to first 20 pages for performance
+    // Convertir en texte et chercher du contenu
+    let rawContent = decoder.decode(bytes);
     
-    console.log(`[cv-processor] Processing ${maxPages} pages...`);
+    // Chercher les patterns de texte dans le PDF
+    let extractedText = '';
     
-    for (let i = 1; i <= maxPages; i++) {
-      try {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const pageText = content.items
-          .filter((item: any) => 'str' in item)
-          .map((item: any) => item.str)
-          .join(' ');
-        textContent += pageText + '\n';
-        
-        // Clean up page resources
-        page.cleanup();
-      } catch (pageError) {
-        console.warn(`[cv-processor] Failed to process page ${i}:`, pageError);
-        continue; // Skip this page and continue with others
+    // Pattern 1: Extraire le texte entre BT et ET (PDF text objects)
+    const textBlocks = rawContent.match(/BT\s*([\s\S]*?)\s*ET/g);
+    if (textBlocks) {
+      for (const block of textBlocks) {
+        const content = block.replace(/BT\s*|\s*ET/g, '')
+                            .replace(/\/\w+\s+\d+(\.\d+)?\s+Tf/g, '') // Remove font commands
+                            .replace(/\d+(\.\d+)?\s+\d+(\.\d+)?\s+Td/g, '') // Remove positioning
+                            .replace(/\([^)]*\)\s*Tj/g, (match) => {
+                              // Extraire le texte des commandes Tj
+                              const text = match.match(/\(([^)]*)\)/)?.[1] || '';
+                              return text + ' ';
+                            });
+        extractedText += content + '\n';
       }
     }
     
-    // Check if we got meaningful text
-    const normalizedText = normalizeText(textContent);
-    if (normalizedText.trim().length > 100 && hasRelevantContent(normalizedText)) {
-      console.log(`[cv-processor] Text extraction successful (${normalizedText.length} chars)`);
+    // Pattern 2: Fallback - chercher des mots simples
+    if (extractedText.length < 100) {
+      const words = rawContent.match(/[A-Za-z0-9@._%+-]+/g);
+      if (words && words.length > 50) {
+        extractedText = words.join(' ');
+      }
+    }
+    
+    // Nettoyer le texte extrait
+    extractedText = extractedText
+      .replace(/[^\x20-\x7E\u00C0-\u017F\n\r\t]/g, ' ') // Garder caractères lisibles
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (extractedText.length > 100) {
+      console.log(`[cv-processor] Simple PDF extraction successful (${extractedText.length} chars)`);
+      const normalizedText = normalizeText(extractedText);
       const structuredData = await structureCV(normalizedText);
       
       return {
         raw_text: normalizedText,
         structured_data: structuredData,
         processing_method: 'text_extraction' as const,
-        confidence_score: 0.95,
+        confidence_score: 0.8,
         file_format: 'pdf' as const
       };
-    } else {
-      console.log('[cv-processor] Extracted text insufficient for CV processing');
     }
+    
+    throw new Error('Extraction de texte insuffisante');
+    
   } catch (error) {
-    console.log('[cv-processor] Direct text extraction failed:', (error as Error).message);
+    console.error('[cv-processor] PDF extraction failed:', error);
+    throw new Error('Impossible de traiter ce PDF. Veuillez convertir en TXT ou utiliser un autre format.');
   }
-
-  // If text extraction fails or yields poor results, use OCR
-  console.log('[cv-processor] Falling back to OCR...');
-  return await performOCR(arrayBuffer, 'pdf', file.size);
 }
 
 // Helper function to check if text contains CV-relevant content

@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import * as pdfjsLib from 'pdfjs-dist';
+// import * as pdfjsLib from 'pdfjs-dist'; // Supprimé
 
 import {
   Upload, FileText, Download, Loader2, CheckCircle,
@@ -62,11 +62,7 @@ export function UnifiedCVUploader() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Configurer le worker PDF.js une seule fois
-  useEffect(() => {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.js";
-  }, []);
+  // Supprimé - plus besoin de PDF.js côté frontend
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -106,47 +102,7 @@ export function UnifiedCVUploader() {
     setResult(null);
   };
 
-  // Conversion PDF → images (base64 PNG)
-  const convertPDFToImages = useCallback(async (file: File): Promise<string[]> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const images: string[] = [];
-
-      const maxPages = Math.min(pdf.numPages, 10);
-
-      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
-        setCurrentStep(`Conversion de la page ${pageNum}/${maxPages}...`);
-
-        const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 2.0 });
-
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d')!;
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        await page.render({ canvasContext: context, viewport, canvas }).promise;
-
-        images.push(canvas.toDataURL('image/png'));
-
-        // Nettoyage mémoire
-        page.cleanup();
-        canvas.width = 0;
-        canvas.height = 0;
-      }
-
-      return images;
-    } catch (err) {
-      console.error("Erreur lors de la conversion PDF → Images:", err);
-      toast({
-        title: "Erreur PDF",
-        description: "Impossible de convertir le PDF en images",
-        variant: "destructive"
-      });
-      return [];
-    }
-  }, [toast]);
+  // Supprimé - traitement déplacé vers l'Edge Function
 
   const processInput = async () => {
     if (!selectedFile && !rawText.trim()) {
@@ -165,23 +121,10 @@ export function UnifiedCVUploader() {
       let requestData: any;
 
       if (activeTab === 'file' && selectedFile) {
-        if (selectedFile.type === 'application/pdf') {
-          const images = await convertPDFToImages(selectedFile);
-
-          if (images.length === 0) throw new Error("Échec de la conversion PDF");
-
-          requestData = {
-            images,
-            fileName: selectedFile.name,
-            fileType: selectedFile.type,
-            fileSize: selectedFile.size,
-            uploadType: 'pdf_images'
-          };
-        } else {
-          const formData = new FormData();
-          formData.append('file', selectedFile);
-          requestData = formData;
-        }
+        // Envoyer le fichier directement à l'Edge Function
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        requestData = formData;
       } else {
         requestData = { cvContent: rawText.normalize('NFC') };
       }
