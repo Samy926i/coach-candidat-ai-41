@@ -1,58 +1,68 @@
-// Crée un agent à partir d’un avatar
-export async function createAgent() {
+export interface CreateAgentOptions {
+  name?: string;
+  avatar_id?: string;
+  language?: string;
+  greeting?: string;
+  system_prompt: string; // requis: le pré-prompt vit ici
+  max_session_length_minutes?: number;
+  llm?: Record<string, any>;
+}
+
+// Crée un agent à partir d’un avatar, avec un system_prompt personnalisé
+export async function createAgent(options: CreateAgentOptions) {
+  const apiKey = import.meta.env.VITE_BEYOND_PRESENCE_API_KEY as string | undefined;
+  if (!apiKey) throw new Error("VITE_BEYOND_PRESENCE_API_KEY manquant");
+
   const response = await fetch("https://api.beyondpresence.ai/v1/agents", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY
+      "x-api-key": apiKey,
     },
     body: JSON.stringify({
-      name: "Interview Coach",
-      avatar_id: "694c83e2-8895-4a98-bd16-56332ca3f449", // ✅ c'est bien l'avatar
-      system_prompt: "You are an AI recruiter that conducts interviews.",
-      language: "fr",
-      greeting: "Bonjour, prêt pour l'entretien ?",
-      max_session_length_minutes: 30,
-      llm: { type: "openai" }
-    })
-  });
-
-  if (!response.ok) throw new Error("Erreur création agent");
-  return response.json(); // ⚡ Vérifie que tu as { id: "...", ... }
-}
-
-// Crée une session à partir d’un agent (pas d’un avatar !)
-export async function createSession(agentId: string) {
-  const response = await fetch("https://api.beyondpresence.ai/v1/sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY
-    },
-    body: JSON.stringify({
-      agent_id: agentId // ✅ bien l'id de l'agent créé
-    })
-  });
-
-  if (!response.ok) throw new Error("Erreur création session");
-  return response.json();
-}
-
-export async function startInterview(role: string) {
-  const response = await fetch("https://api.beyondpresence.ai/v1/sessions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY,
-    },
-    body: JSON.stringify({
-      agent_id: "694c83e2-8895-4a98-bd16-56332ca3f449", // ID de ton agent
-      metadata: { role }
+      name: options.name ?? "Interview Coach",
+      avatar_id: options.avatar_id ?? (import.meta.env.VITE_BP_AVATAR_ID as string),
+      system_prompt: options.system_prompt,
+      language: options.language ?? (import.meta.env.VITE_BP_LANGUAGE as string) ?? "fr-FR",
+      greeting: options.greeting ?? "Bonjour, prêt pour l'entretien ?",
+      max_session_length_minutes: options.max_session_length_minutes ?? 30,
+      llm: options.llm ?? { type: "openai" },
     }),
   });
 
-  if (!response.ok) throw new Error("Erreur démarrage session");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Erreur création agent (${response.status}): ${text}`);
+  }
+  return response.json(); // { id: string, ... }
+}
+
+// Crée une session à partir d’un agent (pas d’un avatar !)
+export async function createSession(agentId: string, metadata?: Record<string, any>) {
+  const apiKey = import.meta.env.VITE_BEYOND_PRESENCE_API_KEY as string | undefined;
+  if (!apiKey) throw new Error("VITE_BEYOND_PRESENCE_API_KEY manquant");
+
+  const response = await fetch("https://api.beyondpresence.ai/v1/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      agent_id: agentId, // ✅ bien l'id de l'agent créé
+      ...(metadata ? { metadata } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Erreur création session (${response.status}): ${text}`);
+  }
   return response.json();
+}
+
+export async function startInterview(agentId: string, metadata?: Record<string, any>) {
+  return createSession(agentId, metadata);
 }
 
 export async function askNext() {
@@ -61,23 +71,35 @@ export async function askNext() {
 }
 
 export async function endInterview(sessionId: string) {
+  const apiKey = import.meta.env.VITE_BEYOND_PRESENCE_API_KEY as string | undefined;
+  if (!apiKey) throw new Error("VITE_BEYOND_PRESENCE_API_KEY manquant");
+
   const response = await fetch(`https://api.beyondpresence.ai/v1/sessions/${sessionId}`, {
     method: "DELETE",
     headers: {
-      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY,
-    }
+      "x-api-key": apiKey,
+    },
   });
 
-  if (!response.ok) throw new Error("Erreur fin de session");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Erreur fin de session (${response.status}): ${text}`);
+  }
   return response.json();
 }
 
 export async function getSessionResults(sessionId: string) {
+  const apiKey = import.meta.env.VITE_BEYOND_PRESENCE_API_KEY as string | undefined;
+  if (!apiKey) throw new Error("VITE_BEYOND_PRESENCE_API_KEY manquant");
+
   const response = await fetch(`https://api.beyondpresence.ai/v1/sessions/${sessionId}/results`, {
     headers: {
-      "x-api-key": import.meta.env.VITE_BEYOND_PRESENCE_API_KEY
-    }
+      "x-api-key": apiKey,
+    },
   });
-  if (!response.ok) throw new Error("Impossible de récupérer les résultats");
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Impossible de récupérer les résultats (${response.status}): ${text}`);
+  }
   return response.json();
 }

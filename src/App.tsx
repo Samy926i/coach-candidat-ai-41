@@ -7,7 +7,7 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import JobContext from "./pages/JobContext";
-import Interview from "./pages/Interview";
+import InterviewWithConfig from "./pages/InterviewWithConfig";
 import SessionDetail from "./pages/SessionDetail";
 import CVAnalysis from "./pages/CVAnalysis";
 import CVSearchPage from "./pages/CVSearch";
@@ -33,7 +33,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/research" element={<Research />} />
           <Route path="/job-context" element={<JobContext />} />
-          <Route path="/interview" element={<Interview />} />
+          <Route path="/interview" element={<InterviewWithConfig />} />
           <Route path="/sessions/:id" element={<SessionDetail />} />
           <Route path="/cv-analysis" element={<CVAnalysis />} />
           <Route path="/cv-search" element={<CVSearchPage />} />
