@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SessionList } from "@/components/coaching/SessionList";
 import { TrendChart } from "@/components/coaching/TrendChart";
-import { ScoreBadge } from "@/components/coaching/ScoreBadge";
 import { AccountLinkingBanner } from "@/components/ui/account-linking-banner";
 import { ProfileCompletenessCard } from "@/components/profile/ProfileCompletenessCard";
 import { 
@@ -23,50 +22,50 @@ import {
   Star
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { mockKPIData, mockChartData, mockSessions } from "@/lib/mock-data";
+import { mockKPIData, mockChartData } from "@/lib/mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { useCVs } from "@/hooks/useCVs";
+
+// UI modal
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [showAccountLinking, setShowAccountLinking] = useState(false);
-  const { getTotalDirectCVs, getDirectCVs } = useCVs();
-  
+
+  // Hook CVs
+  const { getTotalCVs, getDefaultCV } = useCVs();
+
+  // Sessions locales
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [title, setTitle] = useState("");
+
   useEffect(() => {
-    // Get initial session
+    // Charger sessions locales
+    const saved = localStorage.getItem("interview_sessions");
+    if (saved) setSessions(JSON.parse(saved));
+
+    // Auth Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      
-      // Check if user has LinkedIn linked
       if (session?.user) {
         const identities = session.user.identities || [];
-        const hasLinkedIn = identities.some(identity => identity.provider === 'linkedin_oidc');
+        const hasLinkedIn = identities.some(identity => identity.provider === "linkedin_oidc");
         const hasOtherProvider = identities.some(identity => 
-          identity.provider === 'google' || identity.provider === 'email'
+          identity.provider === "google" || identity.provider === "email"
         );
-        
-        // Show linking banner if user has other providers but not LinkedIn
         setShowAccountLinking(hasOtherProvider && !hasLinkedIn);
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setUser(session?.user ?? null);
-        if (!session?.user) {
-          navigate('/auth');
-        } else {
-          // Update linking banner visibility
-          const identities = session.user.identities || [];
-          const hasLinkedIn = identities.some(identity => identity.provider === 'linkedin_oidc');
-          const hasOtherProvider = identities.some(identity => 
-            identity.provider === 'google' || identity.provider === 'email'
-          );
-          setShowAccountLinking(hasOtherProvider && !hasLinkedIn);
-        }
+        if (!session?.user) navigate("/auth");
       }
     );
 
@@ -84,8 +83,30 @@ export default function Dashboard() {
     );
   }
 
-  const recentSessions = mockSessions.slice(0, 3);
-  const completedSessions = mockSessions.filter(s => s.status === 'completed');
+  // === Gestion des entretiens locaux ===
+  const handleStartInterview = () => {
+    if (!title) return;
+
+    const newSession = {
+      id: Date.now(),
+      title,
+      created_at: new Date().toISOString(),
+      status: "planned",
+      duration_minutes: 0,
+      overall_score: null,
+      email_body: null,
+    };
+
+    const updated = [newSession, ...sessions];
+    setSessions(updated);
+    localStorage.setItem("interview_sessions", JSON.stringify(updated));
+
+    setOpenDialog(false);
+    navigate(`/interview?session=${newSession.id}`);
+  };
+
+  const completedSessions = sessions.filter(s => s.status === "completed");
+  const recentSessions = sessions.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,7 +126,7 @@ export default function Dashboard() {
             
             <div className="flex items-center space-x-4">
               <Button
-                onClick={() => navigate('/job-context')}
+                onClick={() => navigate("/job-context")}
                 variant="outline"
                 size="sm"
               >
@@ -113,7 +134,7 @@ export default function Dashboard() {
                 Nouveau contexte
               </Button>
               <Button
-                onClick={() => navigate('/interview')}
+                onClick={() => setOpenDialog(true)}
                 className="bg-primary hover:bg-primary/90"
               >
                 <Video className="h-4 w-4 mr-2" />
@@ -124,13 +145,32 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* Dialog nom entretien */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nommez votre entretien</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Ex: Entretien Frontend Developer"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <DialogFooter>
+            <Button onClick={handleStartInterview} disabled={!title}>
+              Lancer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="container mx-auto px-4 py-8 space-y-6">
-        {/* Account Linking Banner */}
+        {/* Banner compte */}
         {showAccountLinking && (
           <AccountLinkingBanner onDismiss={() => setShowAccountLinking(false)} />
         )}
 
-        {/* Welcome Section */}
+        {/* Welcome */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">
             Bonjour {user.user_metadata?.full_name || user.email} 👋
@@ -164,7 +204,7 @@ export default function Dashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{mockKPIData.totalSessions}</div>
+              <div className="text-2xl font-bold">{sessions.length}</div>
               <p className="text-xs text-muted-foreground mt-2">
                 {completedSessions.length} terminées cette semaine
               </p>
@@ -178,9 +218,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">+{mockKPIData.avgImprovement}</div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Points par session
-              </p>
+              <p className="text-xs text-muted-foreground mt-2">Points par session</p>
             </CardContent>
           </Card>
 
@@ -193,65 +231,13 @@ export default function Dashboard() {
               <div className="text-2xl font-bold">
                 {completedSessions.reduce((acc, s) => acc + s.duration_minutes, 0)}min
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Cette semaine
-              </p>
+              <p className="text-xs text-muted-foreground mt-2">Cette semaine</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Actions rapides</CardTitle>
-            <CardDescription>
-              Accédez rapidement aux outils d'analyse et de préparation d'entretien
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Button
-                variant="outline"
-                className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/cv-analysis')}
-              >
-                <FileText className="h-6 w-6 text-blue-600" />
-                <div className="text-center">
-                  <div className="font-semibold">Analyser CV</div>
-                  <div className="text-xs text-muted-foreground">Coller votre CV</div>
-                </div>
-              </Button>
-              
-               <Button
-                variant="outline"
-                className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/cv-analysis')}
-              >
-                <Globe className="h-6 w-6 text-green-600" />
-                <div className="text-center">
-                  <div className="font-semibold">Analyser CV-JD</div>
-                  <div className="text-xs text-muted-foreground">CV + Offre → Questions</div>
-                </div>
-              </Button>
-              
-               <Button
-                variant="outline"
-                className="h-24 flex flex-col space-y-2"
-                onClick={() => navigate('/research')}
-              >
-                <Video className="h-6 w-6 text-purple-600" />
-                <div className="text-center">
-                  <div className="font-semibold">Research</div>
-                  <div className="text-xs text-muted-foreground">Offre → Entretien</div>
-                </div>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Charts and Recent Sessions */}
+        {/* Chart + Profile */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Progress Chart */}
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Évolution de vos Performances</CardTitle>
@@ -264,66 +250,17 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Profile Completeness */}
           <ProfileCompletenessCard user={user} />
         </div>
 
-        {/* Latest Scores */}
-        {completedSessions.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Derniers Scores</CardTitle>
-              <CardDescription>
-                Performance de votre dernière session
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <ScoreBadge 
-                  score={completedSessions[0].overall_score || 0} 
-                  label="Global" 
-                  size="lg" 
-                />
-                <div className="space-y-2">
-                  <ScoreBadge 
-                    score={completedSessions[0].communication_score || 0} 
-                    label="Communication" 
-                  />
-                  <ScoreBadge 
-                    score={completedSessions[0].technical_score || 0} 
-                    label="Technique" 
-                  />
-                  <ScoreBadge 
-                    score={completedSessions[0].confidence_score || 0} 
-                    label="Confiance" 
-                  />
-                </div>
-              </div>
-              
-              <Button 
-                className="w-full mt-4" 
-                variant="outline"
-                onClick={() => navigate(`/sessions/${completedSessions[0]?.id}`)}
-              >
-                Voir le détail complet
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recent Sessions */}
+        {/* Sessions Récentes */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Sessions Récentes</CardTitle>
-              <CardDescription>
-                Vos dernières simulations d'entretien
-              </CardDescription>
+              <CardDescription>Vos dernières simulations d'entretien</CardDescription>
             </div>
-            <Button 
-              variant="outline" 
-              onClick={() => navigate('/sessions')}
-            >
+            <Button variant="outline" onClick={() => navigate("/sessions")}>
               Voir tout
             </Button>
           </CardHeader>
@@ -349,7 +286,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => navigate('/cv-analysis')}>
             <CardHeader>
@@ -365,6 +301,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
+          {/* Mes CV */}
           <Card className="hover:shadow-lg transition-shadow cursor-pointer"
                 onClick={() => navigate('/cv-management')}>
             <CardHeader>
@@ -373,25 +310,25 @@ export default function Dashboard() {
                   <Archive className="h-5 w-5 text-primary" />
                   <span>Mes CV</span>
                 </div>
-                {getTotalDirectCVs() > 0 && (
-                  <Badge variant="secondary">{getTotalDirectCVs()}</Badge>
+                {getTotalCVs() > 0 && (
+                  <Badge variant="secondary">{getTotalCVs()}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {getTotalDirectCVs() === 0 
+                {getTotalCVs() === 0 
                   ? "Aucun CV importé" 
-                  : `${getTotalDirectCVs()} CV${getTotalDirectCVs() > 1 ? 's' : ''} dans votre bibliothèque`
+                  : `${getTotalCVs()} CV${getTotalCVs() > 1 ? 's' : ''} dans votre bibliothèque`
                 }
               </p>
-              {getDirectCVs().find(cv => cv.is_default) && (
+              {getDefaultCV() && (
                 <div className="mt-2 flex items-center text-xs text-muted-foreground">
                   <Star className="h-3 w-3 text-yellow-500 mr-1" />
-                  CV principal: {getDirectCVs().find(cv => cv.is_default)?.filename || 'CV uploadé'}
+                  CV principal: {getDefaultCV()?.filename || 'CV uploadé'}
                 </div>
               )}
-              {getTotalDirectCVs() === 0 && (
+              {getTotalCVs() === 0 && (
                 <div className="mt-2">
                   <Button size="sm" variant="outline" className="text-xs">
                     <Plus className="h-3 w-3 mr-1" />
@@ -399,21 +336,6 @@ export default function Dashboard() {
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => navigate('/settings')}>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5 text-coaching-score-good" />
-                <span>Paramètres</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Configurez vos préférences et objectifs
-              </p>
             </CardContent>
           </Card>
         </div>

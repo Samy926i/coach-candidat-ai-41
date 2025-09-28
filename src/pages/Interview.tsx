@@ -1,5 +1,6 @@
 import { useState, useEffecimport { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+<<<<<<< HEAD
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -7,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+=======
+import { getLatestEmail } from "@/services/supabaseEmails";
+import { Card, CardContent } from "@/components/ui/card";
+>>>>>>> feature/Avatar_IA
 import { 
   ArrowLeft, 
   Video,
-  Mic,
-  MicOff,
-  VideoOff,
   Play,
+<<<<<<< HEAD
   Square,
   Clock,
   MessageSquare,
@@ -549,11 +552,12 @@ import {
   Settings,
   Plus,
   X
+=======
+  Clock
+>>>>>>> feature/Avatar_IA
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-
-// tu peux garder tes questions mockées pour l’instant
 import { mockQuestions } from "@/lib/mock-data";
 
 export default function Interview() {
@@ -563,17 +567,16 @@ export default function Interview() {
   const sessionId = searchParams.get('session');
 
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isAudioOn, setIsAudioOn] = useState(true);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [sessionStatus, setSessionStatus] = useState<'setup' | 'active' | 'completed'>('setup');
+<<<<<<< HEAD
   const [transcript, setTranscript] = useState("");
   const [embedUrl, setEmbedUrl] = useState<string>("");
+=======
+>>>>>>> feature/Avatar_IA
 
   const questions = mockQuestions;
   const currentQ = questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
 
   // Timer
   useEffect(() => {
@@ -630,25 +633,43 @@ export default function Interview() {
     }
   };
 
-  const handleEndInterview = () => {
-    setSessionStatus('completed');
-    toast({
-      title: "Entretien terminé",
-      description: "Analyse de vos réponses en cours..."
-    });
-    setTimeout(() => {
-      navigate(`/sessions/${sessionId || 'demo'}`);
-    }, 2000);
-  };
+  
 
-  const handleToggleRecording = () => {
-    setIsRecording(!isRecording);
-    if (!isRecording) {
-      setTranscript("Enregistrement en cours...");
-    } else {
-      setTranscript(`Voici ma réponse à la question "${currentQ?.question_text}". Je pense que la meilleure approche serait de...`);
+const handleEndInterview = async () => {
+  setSessionStatus("completed");
+
+  // 🔥 Récupérer l’email le plus récent
+  try {
+    const email = await getLatestEmail();
+
+    if (email) {
+      // Charger les sessions
+      const stored = localStorage.getItem("interview_sessions");
+      const sessions = stored ? JSON.parse(stored) : [];
+
+      // Mettre à jour la session courante
+      const updated = sessions.map((s: any) =>
+        s.id.toString() === sessionId?.toString()
+          ? { ...s, email_body: email.body, status: "completed" }
+          : s
+      );
+
+      localStorage.setItem("interview_sessions", JSON.stringify(updated));
     }
-  };
+  } catch (err) {
+    console.error("Erreur récupération email:", err);
+  }
+
+  toast({
+    title: "Entretien terminé",
+    description: "Analyse de vos réponses en cours..."
+  });
+
+  setTimeout(() => {
+    navigate(`/sessions/${sessionId || "demo"}`);
+  }, 2000);
+};
+
 
   // === UI Render ===
   if (sessionStatus === 'completed') {
@@ -678,7 +699,6 @@ export default function Interview() {
                 variant="ghost"
                 size="sm"
                 onClick={() => navigate('/dashboard')}
-                
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 {sessionStatus === 'active' ? 'En cours...' : 'Retour'}
@@ -688,43 +708,34 @@ export default function Interview() {
                 <span className="font-mono text-sm">{formatTime(timeElapsed)}</span>
               </div>
             </div>
-
-            <div className="flex items-center space-x-4">
-              <Progress value={progress} className="w-32" />
-              <Badge variant="outline">
-                {currentQuestion + 1} / {questions.length}
-              </Badge>
-            </div>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
-          
+        <div className="h-[calc(100vh-200px)]">
           {/* Zone vidéo */}
-          <div className="lg:col-span-2 space-y-4">
-            <Card className="h-[700px]">
-              <CardContent className="p-0 h-full">
-                <div className="video-container h-full flex items-center justify-center relative">
-                  {sessionStatus === 'setup' ? (
-                    <div className="text-center space-y-4">
-                      <Video className="h-16 w-16 text-primary mx-auto" />
-                      <div>
-                        <h3 className="text-xl font-semibold mb-2">Prêt à commencer ?</h3>
-                        <p className="text-muted-foreground mb-4">
-                          Vérifiez votre caméra et micro avant de démarrer
-                        </p>
-                        <Button
-                          onClick={handleStartSession}
-                          size="lg"
-                          className="bg-primary hover:bg-primary/90"
-                        >
-                          <Play className="mr-2 h-5 w-5" />
-                          Démarrer l'entretien
-                        </Button>
-                      </div>
+          <Card className="h-[700px]">
+            <CardContent className="p-0 h-full">
+              <div className="video-container h-full flex items-center justify-center relative">
+                {sessionStatus === 'setup' ? (
+                  <div className="text-center space-y-4">
+                    <Video className="h-16 w-16 text-primary mx-auto" />
+                    <div>
+                      <h3 className="text-xl font-semibold mb-2">Prêt à commencer ?</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Vérifiez votre caméra et micro avant de démarrer
+                      </p>
+                      <Button
+                        onClick={handleStartSession}
+                        size="lg"
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        <Play className="mr-2 h-5 w-5" />
+                        Démarrer l'entretien
+                      </Button>
                     </div>
+<<<<<<< HEAD
                   ) : embedUrl ? (
                     <iframe
                       src={embedUrl}
@@ -756,6 +767,22 @@ export default function Interview() {
               </CardContent>
             </Card>
           </div>
+=======
+                  </div>
+                ) : (
+                  <iframe
+                    src="https://bey.chat/c801e0bb-0162-4133-bbb3-3743f99a34b0"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    allow="camera; microphone; fullscreen"
+                    style={{ border: "none", borderRadius: "8px" }}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+>>>>>>> feature/Avatar_IA
         </div>
       </div>
     </div>

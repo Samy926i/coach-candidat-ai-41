@@ -16,16 +16,24 @@ import {
   Target,
   MessageSquare,
   BarChart3,
-  Upload
+  Upload,
+  Calendar,
+  Clock,
+  ArrowRight
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+<<<<<<< HEAD
 import { supabase } from "@/integrations/supabase/client";
+=======
+>>>>>>> feature/Avatar_IA
 
 export default function SessionDetail() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
+  const [session, setSession] = useState<any | null>(null);
 
+<<<<<<< HEAD
   // --- states Supabase ---
   const [session, setSession] = useState<any>(null);
   const [questions, setQuestions] = useState<any[]>([]);
@@ -92,6 +100,21 @@ export default function SessionDetail() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p>Session introuvable</p>
+=======
+  useEffect(() => {
+    const stored = localStorage.getItem("interview_sessions");
+    if (stored) {
+      const sessions = JSON.parse(stored);
+      const found = sessions.find((s: any) => s.id.toString() === id?.toString());
+      setSession(found || null);
+    }
+  }, [id]);
+
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-muted-foreground">Session introuvable</p>
+>>>>>>> feature/Avatar_IA
       </div>
     );
   }
@@ -103,6 +126,7 @@ export default function SessionDetail() {
       month: "long",
       day: "numeric",
       hour: "2-digit",
+<<<<<<< HEAD
       minute: "2-digit",
     });
   };
@@ -110,6 +134,12 @@ export default function SessionDetail() {
   const overallFeedback = feedbacks.find(f => f.feedback_type === "overall");
   const questionFeedbacks = feedbacks.filter(f => f.feedback_type === "question");
 
+=======
+      minute: "2-digit"
+    });
+  };
+
+>>>>>>> feature/Avatar_IA
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -149,30 +179,83 @@ export default function SessionDetail() {
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
-            <TabsTrigger value="questions">Questions & Réponses</TabsTrigger>
-            <TabsTrigger value="feedback">Feedback Détaillé</TabsTrigger>
+            <TabsTrigger value="feedback">Email & Feedback</TabsTrigger>
             <TabsTrigger value="progress">Progression</TabsTrigger>
           </TabsList>
 
+<<<<<<< HEAD
           {/* --- Overview --- */}
+=======
+          {/* === Overview === */}
+>>>>>>> feature/Avatar_IA
           <TabsContent value="overview" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Résumé de la Session</span>
+<<<<<<< HEAD
                   <Badge className={`capitalize ${
                     session.status === "completed" ? "score-excellent border" : ""
                   }`}>
                     {session.status}
+=======
+                  <Badge className="capitalize">
+                    {session.status === "completed" ? "Terminé" : session.status}
+>>>>>>> feature/Avatar_IA
                   </Badge>
                 </CardTitle>
                 <CardDescription>
-                  Session de {session.duration_minutes} minutes • Type: {session.session_type}
+                  Session de {session.duration_minutes} minutes • Type: {session.session_type || "N/A"}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                <div className="flex items-center space-between">
+                  <div className="flex items-center space-x-6 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>{formatDate(session.created_at)}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{session.duration_minutes} min</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <FileText className="h-4 w-4" />
+                      <span className="capitalize">{session.session_type || "non défini"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3">
+                    {session.overall_score && (
+                      <ScoreBadge score={session.overall_score} label="Score" size="sm" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Aperçu email lié */}
+                {session.email_body && (
+                  <p className="mt-3 text-sm text-muted-foreground whitespace-pre-wrap">
+                    {session.email_body}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* === Feedback (Email + future feedback) === */}
+          <TabsContent value="feedback" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Email lié à la session</CardTitle>
+                <CardDescription>
+                  Contenu récupéré depuis Supabase (via n8n)
                 </CardDescription>
               </CardHeader>
               <CardContent>
+<<<<<<< HEAD
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary mb-1">
@@ -199,10 +282,20 @@ export default function SessionDetail() {
                     <div className="text-sm text-muted-foreground">Durée</div>
                   </div>
                 </div>
+=======
+                {session.email_body ? (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {session.email_body}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">Aucun email attaché</p>
+                )}
+>>>>>>> feature/Avatar_IA
               </CardContent>
             </Card>
           </TabsContent>
 
+<<<<<<< HEAD
           {/* --- Questions & Réponses --- */}
           <TabsContent value="questions" className="space-y-6">
             {questions.map((question, index) => {
@@ -269,6 +362,10 @@ export default function SessionDetail() {
 
           {/* --- Progression --- */}
           <TabsContent value="progress">
+=======
+          {/* === Progression === */}
+          <TabsContent value="progress" className="space-y-6">
+>>>>>>> feature/Avatar_IA
             <Card>
               <CardHeader>
                 <CardTitle>Analyse de Progression</CardTitle>
